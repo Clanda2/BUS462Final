@@ -9,14 +9,17 @@ set.seed(42)
 
 #install the necessary packages
 install.packages((c("tm", "tidytext", "dplyr", "readr", "caret")))
-install.packages(c("text2vec"))
+install.packages(c("irlba")) 
+install.packages(c("Matrix"))
 #load the necessary packages                  
 library(readr) 
 library(dplyr) 
 library(tm)
 library(tidytext)
 library(caret)
-library(ggplot2) 
+library(ggplot2)  
+library(irlba) 
+library(Matrix)
 
 
 #function to read the text files
@@ -67,16 +70,27 @@ rowSumsDTM <- rowSums(as.matrix(dtm)) # Calculate row sums of the DTM
 emptyDocs <- which(rowSumsDTM == 0) # Identify which rows (documents) are empty (sum to 0)
 train_data_non_empty <- train_data[-emptyDocs, ] # Remove corresponding entries from the original dataset
 dtm_non_empty <- dtm[-emptyDocs, ] # Remove empty documents from the DTM
-dtm_tfidf <- weightTfIdf(dtm_non_empty) #Weight the DTM using Term Frequency-Inverse Document Frequency (TF-IDF)
+dtm_tfidf <- weightTfIdf(dtm_non_empty) #Weight the DTM using Term Frequency-Inverse Document Frequency (TF-IDF) 
 
 #TF-IDF is a numerical statistic that is intended to reflect how important a word is 
 #to a document in a collection or corpus.
+
+
+#Below steps are to apply SVD to reduce the dimensionality of the data 
+
+dtm_tfidf <- as.matrix(dtm_tfidf) #convert the DTM to a matrix 
+dtm_sparse <- Matrix(dtm_tfidf, sparse = TRUE) #convert the matrix to a sparse matrix for efficient computation 
+svd_result <- irlba(dtm_tfidf, nv = 50) #apply truncated SVD to reduce the dimensionality of the data to 50 dimensions
+reduced_features <- svd_result$u %*% diag(svd_result$d) #multiply the left singular vectors by the singular values to obtain the reduced features
+
+#SVD is done to reduce the dimensionality of the data by finding the most important features and improving the computational efficiency of the model.
 
 #remove intermediate objects to free up memory 
 rm(emptyDocs, dtm, rowSumsDTM, train_data, train_neg_reviews, train_pos_reviews, test_neg_reviews, test_pos_reviews)
 rm(docs)
 rm(dtm_non_empty)
-
+rm(dtm_sparse)
+rm(dtm_tfidf)
 #view the document term matrix 
 inspect(dtm_tfidf)   
 
@@ -119,6 +133,7 @@ test_data_small <- test_data[1:200, ]
 
 #create the logistic regression model using the subsetted data 
 logistic_model <- glm(sentiment ~ ., data = train_data_small, family = "binomial")
+
 
 
 
