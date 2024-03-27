@@ -16,6 +16,7 @@ library(dplyr)
 library(tm)
 library(tidytext)
 library(caret)
+library(ggplot2) 
 
 #function to read the text files
 read_files_and_label <- function(directory, sentiment) {
@@ -52,6 +53,9 @@ docs <- tm_map(docs, removeNumbers)
 docs <- tm_map(docs, removeWords, stopwords("english"))
 docs <- tm_map(docs, stripWhitespace) 
 
+#add a column to the data to capture the length of the review 
+train_data$review_length <- nchar(train_data$text) 
+
 # Create a document-term matrix 
 dtm <- DocumentTermMatrix(docs)
 dtm <- removeSparseTerms(dtm, 0.99)
@@ -65,9 +69,6 @@ train_data_matrix <- as.matrix(dtm)
 #QUESTION for CK - This matrix contains a very large amount of elements, do we need to do more precprocessing to reduce the size of the matrix? 
 #stack overflow recommends either a) more stopwords, b)TD-IDF Weighting or C) Dimensionality reduction? 
 
-#add a column to the data to capture the length of the review 
-train_data$review_length <- nchar(train_data$text)  
-
 #shuffle the data 
 train_data <- train_data[sample(nrow(train_data)), ] 
 
@@ -80,9 +81,8 @@ test_data <- train_data[-trainIndex, ]
 
 #exploratory data analysis
 
-#plot the distribution of review lengths using ggplot2 
+#plot the distribution of review lengths
 
-library(ggplot2) 
 ggplot(train_data, aes(x = review_length)) + 
   geom_histogram(binwidth = 100) + 
   labs(title = "Distribution of Review Lengths", x = "Review Length", y = "Frequency") 
