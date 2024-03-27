@@ -17,7 +17,7 @@ library(tm)
 library(tidytext)
 library(caret)
 library(ggplot2) 
-library(text2vec)
+
 
 #function to read the text files
 read_files_and_label <- function(directory, sentiment) {
@@ -58,8 +58,8 @@ docs <- tm_map(docs, stripWhitespace)
 train_data$review_length <- nchar(train_data$text) 
 
 # Create a document-term matrix 
-dtm <- DocumentTermMatrix(docs)
-dtm <- removeSparseTerms(dtm, 0.99)  
+dtm <- DocumentTermMatrix(docs) #creates a document term matrix (DTM) from the corpus to represent the text data in a numerical format 
+dtm <- removeSparseTerms(dtm, 0.90)  #remove sparse terms (terms that appear in less than 10% of the documents) to reduce the size of the DTM
 
 #additional pre-processing steps to remove empty documents and maintain correspondence with the original corpus
 
@@ -67,10 +67,18 @@ rowSumsDTM <- rowSums(as.matrix(dtm)) # Calculate row sums of the DTM
 emptyDocs <- which(rowSumsDTM == 0) # Identify which rows (documents) are empty (sum to 0)
 train_data_non_empty <- train_data[-emptyDocs, ] # Remove corresponding entries from the original dataset
 dtm_non_empty <- dtm[-emptyDocs, ] # Remove empty documents from the DTM
-dtm_tfidf <- weightTfIdf(dtm_non_empty) # Proceed with TF-IDF weighting on the non-empty DTM
+dtm_tfidf <- weightTfIdf(dtm_non_empty) #Weight the DTM using Term Frequency-Inverse Document Frequency (TF-IDF)
+
+#TF-IDF is a numerical statistic that is intended to reflect how important a word is 
+#to a document in a collection or corpus.
+
+#remove intermediate objects to free up memory 
+rm(emptyDocs, dtm, rowSumsDTM, train_data, train_neg_reviews, train_pos_reviews, test_neg_reviews, test_pos_reviews)
+rm(docs)
+rm(dtm_non_empty)
 
 #view the document term matrix 
-inspect(dtm_non_empty)   
+inspect(dtm_tfidf)   
 
 #shuffle the data 
 train_data_non_empty <- train_data_non_empty[sample(nrow(train_data_non_empty)), ] 
@@ -85,27 +93,32 @@ test_data <- train_data_non_empty[-trainIndex, ]
 
 #plot the distribution of review lengths
 
-ggplot(train_data, aes(x = review_length)) + 
+ggplot(train_data_non_empty, aes(x = review_length)) + 
   geom_histogram(binwidth = 100) + 
   labs(title = "Distribution of Review Lengths", x = "Review Length", y = "Frequency") 
 
 #plot the distribution of sentiment using ggplot2 
-ggplot(train_data, aes(x = sentiment)) + 
+ggplot(train_data_non_empty, aes(x = sentiment)) + 
   geom_bar() + 
   labs(title = "Distribution of Sentiment", x = "Sentiment", y = "Frequency") 
  
 #plot the distribution of sentiment by review length using ggplot2 
-ggplot(train_data, aes(x = review_length, fill = sentiment)) + 
+ggplot(train_data_non_empty, aes(x = review_length, fill = sentiment)) + 
   geom_histogram(binwidth = 100, position = "dodge") + 
   labs(title = "Distribution of Sentiment by Review Length", x = "Review Length", y = "Frequency") 
 
 
+#subset the data to create a smaller dataset for model building 
+train_data_small <- train_data[1:1000, ]
+test_data_small <- test_data[1:200, ]
 
 
 
-#hypothesis 1: Can we predict the sentiment of a movie review (positive or negative) based on the frequency of words used in the text?
+#hypothesis 1: Can we predict the sentiment of a movie review (positive or negative) 
+#based on the frequency of words used in the text?  
 
-#starting with logistic regression 
+#create the logistic regression model using the subsetted data 
+logistic_model <- glm(sentiment ~ ., data = train_data_small, family = "binomial")
 
 
 
