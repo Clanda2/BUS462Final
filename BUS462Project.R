@@ -9,7 +9,7 @@ set.seed(42)
 
 #install the necessary packages
 install.packages((c("tm", "tidytext", "dplyr", "readr", "caret")))
-
+install.packages(c("text2vec"))
 #load the necessary packages                  
 library(readr) 
 library(dplyr) 
@@ -17,6 +17,7 @@ library(tm)
 library(tidytext)
 library(caret)
 library(ggplot2) 
+library(text2vec)
 
 #function to read the text files
 read_files_and_label <- function(directory, sentiment) {
@@ -58,25 +59,26 @@ train_data$review_length <- nchar(train_data$text)
 
 # Create a document-term matrix 
 dtm <- DocumentTermMatrix(docs)
-dtm <- removeSparseTerms(dtm, 0.99)
+dtm <- removeSparseTerms(dtm, 0.99)  
+
+#additional pre-processing steps to remove empty documents and maintain correspondence with the original corpus
+
+rowSumsDTM <- rowSums(as.matrix(dtm)) # Calculate row sums of the DTM
+emptyDocs <- which(rowSumsDTM == 0) # Identify which rows (documents) are empty (sum to 0)
+train_data_non_empty <- train_data[-emptyDocs, ] # Remove corresponding entries from the original dataset
+dtm_non_empty <- dtm[-emptyDocs, ] # Remove empty documents from the DTM
+dtm_tfidf <- weightTfIdf(dtm_non_empty) # Proceed with TF-IDF weighting on the non-empty DTM
 
 #view the document term matrix 
-inspect(dtm)   
-
-#convert the document term matrix to a matrix 
-train_data_matrix <- as.matrix(dtm) 
-
-#QUESTION for CK - This matrix contains a very large amount of elements, do we need to do more precprocessing to reduce the size of the matrix? 
-#stack overflow recommends either a) more stopwords, b)TD-IDF Weighting or C) Dimensionality reduction? 
+inspect(dtm_non_empty)   
 
 #shuffle the data 
-train_data <- train_data[sample(nrow(train_data)), ] 
+train_data_non_empty <- train_data_non_empty[sample(nrow(train_data_non_empty)), ] 
 
 #split the data into training and testing sets using the caret package 
-set.seed(42) 
-trainIndex <- createDataPartition(train_data$sentiment, p = .8, list = FALSE, times = 1) 
-train_data <- train_data[trainIndex, ]
-test_data <- train_data[-trainIndex, ]
+trainIndex <- createDataPartition(train_data_non_empty$sentiment, p = .8, list = FALSE, times = 1) 
+train_data <- train_data_non_empty[trainIndex, ]
+test_data <- train_data_non_empty[-trainIndex, ]
 
 
 #exploratory data analysis
