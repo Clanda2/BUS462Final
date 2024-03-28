@@ -57,25 +57,6 @@ movies_cleaned <- movies_cleaned %>% select(-rotten_tomatoes_link) # Drop the ro
 rm(missing_values, num_rows_with_missing_or_blank)
 
 
-#ensure columns are atomic (resulting DF only used for analysis on genre, actors, authors and directors as it creates duplicates)  
-movies_long_step_1 <- movies_cleaned %>% 
-  separate_rows(authors, sep = ",\\s*") %>% 
-  mutate(authors = trimws(authors))
-
-movies_long_step_2 <- movies_long_step_1 %>% 
-  separate_rows(genres, sep = ",\\s*") %>% 
-  mutate(genres = trimws(genres))
-
-movies_long_step_3 <- movies_long_step_2 %>% 
-  separate_rows(actors, sep = ",\\s*") %>% 
-  mutate(actors = trimws(actors))
-
-movies_long <- movies_long_step_3 %>% 
-  separate_rows(directors, sep = ",\\s*") %>% 
-  mutate(directors = trimws(directors)) 
-
-rm(movies_long_step_1, movies_long_step_2, movies_long_step_3) # Remove the temporary data frames (movies_long_step_1, movies_long_step_2, movies_long_step_3)
-
 
 
 
