@@ -42,7 +42,7 @@ missing_values <- missing_values[order(missing_values, decreasing = TRUE)]
 missing_values 
 
 #drop the critic consensus column 
-movies_cleaned <- movies %>% select(-critics_consensus)
+movies_cleaned <- movies %>% select(-critics_consensus) #many missing values in this column so dropping it 
 names(movies_cleaned) 
 
 #counting and removing rows with any missing values 
@@ -97,7 +97,7 @@ ggplot(movies_cleaned, aes(x = "", y = runtime)) +
 
 #data set has a number of outliers in runtime, but these are valid values so will not remove them 
 
-#create a long format data set for analysis on genre to check for balance
+#create a long format data set to seperate each comma seperated genre into its own column to check balance 
 
 movies_genre_long <- movies_cleaned %>%
   separate_rows(genres, sep = ",\\s*") %>%
@@ -151,7 +151,75 @@ ggplot(movies_cleaned, aes(x = age_at_streaming)) +
 ### this has a number of zeros indicating the movies were released direct to streaming, might considering subsetting into movies 
 ### released in theaters first and those that were not 
 
-#data is right skewed, but this is expected so will not transform the data  (might be needed confirm)
+#data is right skewed, but this is expected so will not transform the data  (might be needed confirm) 
+
+#add a column for the number of actors in the cast 
+movies_cleaned$num_actors <- sapply(movies_cleaned$actors, function(x) length(unlist(strsplit(x, ",\\s*")))) 
+
+#check for outliers in the number of actors
+ggplot(movies_cleaned, aes(x = "", y = num_actors)) + 
+  geom_boxplot(fill = "tomato", color = "navy") +
+  labs(title = "Distribution of Number of Actors in the Cast",
+       x = "", 
+       y = "Number of Actors") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),  # Center the plot title
+        axis.title.x = element_blank(),  # Remove x axis label
+        axis.ticks.x = element_blank(),  # Remove x axis ticks
+        axis.text.x = element_blank())  # Remove x axis text
+
+#one extreme outlier identified so will need to remove, run the regession twice to see the impact or do a log transformation???? 
+
+
+#check for distribution of number of actors
+ggplot(movies_cleaned, aes(x = num_actors)) + 
+  geom_histogram(fill = "tomato", color = "navy", bins = 30) +
+  labs(title = "Distribution of Number of Actors in the Cast",
+       x = "Number of Actors", 
+       y = "Count") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))  # Center the plot title
+
+
+##extremely right skewed might consider a log transformation???? 
+
+#add a column for the number of authors 
+
+movies_cleaned$num_authors <- sapply(movies_cleaned$authors, function(x) length(unlist(strsplit(x, ",\\s*"))))
+
+#check for outliers in the number of authors
+
+ggplot(movies_cleaned, aes(x = "", y = num_authors)) + 
+  geom_boxplot(fill = "tomato", color = "navy") +
+  labs(title = "Distribution of Number of Authors",
+       x = "", 
+       y = "Number of Authors") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),  # Center the plot title
+        axis.title.x = element_blank(),  # Remove x axis label
+        axis.ticks.x = element_blank(),  # Remove x axis ticks
+        axis.text.x = element_blank())  # Remove x axis text
+
+## same here has outliers might consider a transformation or running the regression twice if including  
+
+#add a column for the number of directors 
+
+movies_cleaned$num_directors <- sapply(movies_cleaned$directors, function(x) length(unlist(strsplit(x, ",\\s*"))))
+
+#check for outliers in the number of directors
+
+ggplot(movies_cleaned, aes(x = "", y = num_directors)) + 
+  geom_boxplot(fill = "tomato", color = "navy") +
+  labs(title = "Distribution of Number of Directors",
+       x = "", 
+       y = "Number of Directors") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),  # Center the plot title
+        axis.title.x = element_blank(),  # Remove x axis label
+        axis.ticks.x = element_blank(),  # Remove x axis ticks
+        axis.text.x = element_blank())  # Remove x axis text
+
+#same with this one, number of outtliers so might consider a transformation or running the regression twice if including 
 
 
 ####### EXPLORATORY ANALYSIS ######## 
