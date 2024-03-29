@@ -14,7 +14,7 @@ install.packages("googledrive")
 install.packages("corrplot") 
 install.packages("fastDummies")
 install.packages("httr")
-
+install.packages("timeDate")
 #loading the data and packages
 
 library(dplyr)
@@ -26,7 +26,7 @@ library(corrplot)
 library(scales) 
 library(stargazer)
 library(fastDummies)
-library(httr)
+library(timeDate)
 
 drive_auth() #connecting to Google Drive API for data download
 file_id <- "https://drive.google.com/file/d/1LtLVMOV2yBkhXo-DrvXS3E5O_U_l1M0K/view?usp=drive_link"
@@ -294,6 +294,7 @@ movies_cleaned$release_month <- format(movies_cleaned$original_release_date, "%m
 
 movies_cleaned$release_year <- format(movies_cleaned$original_release_date, "%Y") #extract the year from the release date
 movies_cleaned$release_month <- as.numeric(movies_cleaned$release_month) #convert to numeric for categorization
+movies_cleaned$release_year <- as.numeric(movies_cleaned$release_year) #convert to numeric for categorization
 
 movies_cleaned$season <- cut(movies_cleaned$release_month,
                              breaks = c(0, 3, 6, 9, 12), # Adjust breaks to include December in Winter
@@ -312,6 +313,27 @@ ggplot(movies_cleaned, aes(x = season)) +
   theme(plot.title = element_text(hjust = 0.5))  # Center the plot title
 
 #approximately equal distribution of movies across the seasons so we can proceed with the analysis 
+
+
+#one hot encode the season column 
+movies_cleaned <- fastDummies::dummy_cols(movies_cleaned, select_columns = "season", remove_selected_columns = TRUE)
+
+
+#reconstructing seasons to examine time series analysis 
+# Example of reconstructing the 'season' variable from one-hot encoded columns
+movies_cleaned$season_visualization <- with(movies_cleaned,
+                                            ifelse(season_Spring == 1, "Spring",
+                                                   ifelse(season_Summer == 1, "Summer",
+                                                          ifelse(season_Fall == 1, "Fall", "Winter")
+                                                   )
+                                            )
+)
+
+movies_cleaned$season_visualization <- factor(movies_cleaned$season_visualization, levels = c("Winter", "Spring", "Summer", "Fall"))
+
+season_visualization <- as.factor(movies_cleaned$season_visualization) #convert to factor for visualization
+
+#Check the data was properly encoded 
 
 
 ## might need to scale the numeric columns before running the regression
@@ -360,6 +382,75 @@ ggplot(movies_cleaned, aes(x = audience_count)) +
   scale_y_continuous(labels = scales::comma)  # Ensure y-axis labels are not in scientific notation
 
 #data is heavily right skewed should do a log transformation before running the regression 
+
+
+#examining effect of year on seasonlity of ratings 
+
+#data set to large for meaningful visualization so will subset to a smaller sample 
+sample_size <- floor(0.1 * nrow(movies_cleaned))
+movies_sampled <- movies_cleaned[sample(nrow(movies_cleaned), sample_size), ] #take a 10% sample of the data set 
+
+#check that the sample is representative of the original data set 
+
+# Full dataset summary using dplyr for a cleaner output
+summary_full <- movies_cleaned %>%
+  summarise(Minimum = min(tomatometer_rating, na.rm = TRUE),
+            First_Quartile = quantile(tomatometer_rating, 0.25, na.rm = TRUE),
+            Median = median(tomatometer_rating, na.rm = TRUE),
+            Mean = mean(tomatometer_rating, na.rm = TRUE),
+            Third_Quartile = quantile(tomatometer_rating, 0.75, na.rm = TRUE),
+            Maximum = max(tomatometer_rating, na.rm = TRUE))
+
+# Sampled data summary
+summary_sampled <- movies_sampled %>%
+  summarise(Minimum = min(tomatometer_rating, na.rm = TRUE),
+            First_Quartile = quantile(tomatometer_rating, 0.25, na.rm = TRUE),
+            Median = median(tomatometer_rating, na.rm = TRUE),
+            Mean = mean(tomatometer_rating, na.rm = TRUE),
+            Third_Quartile = quantile(tomatometer_rating, 0.75, na.rm = TRUE),
+            Maximum = max(tomatometer_rating, na.rm = TRUE))
+
+# Combine full and sampled summaries into one data frame for comparison
+comparison <- bind_rows(Full = summary_full, Sampled = summary_sampled)
+print(comparison)
+
+
+#plot the relationship between release year and tomatometer rating by season
+year_breaks <- seq(min(movies_sampled$release_year, na.rm = TRUE),
+                   max(movies_sampled$release_year, na.rm = TRUE), by = 5) 
+
+movies_sampled$release_year <- as.numeric(movies_sampled$release_year)  # Convert release year to factor for better visualization
+
+
+# Generate the plot
+years_seasonality <- ggplot(movies_sampled, aes(x = release_year, y = tomatometer_rating)) +
+  geom_jitter(aes(color = season_visualization), alpha = 0.6, width = 0.2, height = 0) +
+  geom_smooth(method = "lm", aes(color = season_visualization), se = TRUE) +  # Adding confidence interval
+  facet_wrap(~season_visualization, scales = "free_x") +
+  theme_minimal(base_size = 12) +
+  scale_x_continuous(breaks = seq(min(movies_sampled$release_year), max(movies_sampled$release_year), by = 5)) +  # Only show labels every 5 years
+  scale_color_manual(values = c("Winter" = "#1f77b4", "Spring" = "#2ca02c", "Summer" = "#ff7f0e", "Fall" = "#d62728")) +  # Assign new colors
+  labs(
+    title = "Tomatometer Rating by Release Year (Faceted by Season)",
+    x = "Release Year",
+    y = "Tomatometer Rating"
+  ) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 14),  # Bold and center the title with a smaller font size
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 45, vjust = 0.5, hjust = 1, size = 8),  # Smaller text for years
+    plot.margin = margin(4, 4, 4, 4, "points"),  # Adjust margins if needed
+    legend.title = element_blank()
+  )
+
+print(years_seasonality)
+
+
+#while not entirely clear there seems to be between an inconsisten relationship betweeen release year and tomatometer rating by season, we will need to run a regression to confirm and include the interaction term 
+
+
+
+
 
 ####### HYPOTHESIS TESTING AND MODELS ######## 
 
