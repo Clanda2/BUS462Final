@@ -13,6 +13,7 @@ set.seed(42)
 install.packages("googledrive")
 install.packages("corrplot") 
 install.packages("fastDummies")
+install.packages("httr")
 
 #loading the data and packages
 
@@ -25,6 +26,7 @@ library(corrplot)
 library(scales) 
 library(stargazer)
 library(fastDummies)
+library(httr)
 
 drive_auth() #connecting to Google Drive API for data download
 file_id <- "https://drive.google.com/file/d/1LtLVMOV2yBkhXo-DrvXS3E5O_U_l1M0K/view?usp=drive_link"
@@ -75,6 +77,7 @@ movies_cleaned$original_release_date <- as.Date(movies_cleaned$original_release_
 movies_cleaned$streaming_release_date <- as.Date(movies_cleaned$streaming_release_date, format = "%Y-%m-%d")
 movies_cleaned$genres <- as.factor(movies_cleaned$genres)
 movies_cleaned$tomatometer_status <- factor(movies_cleaned$tomatometer_status, levels = c("Rotten", "Fresh", "Certified-Fresh")) #convert tomatometer_status to factor with levels for regression analysis
+movies_cleaned$tomatometer_rating <- as.numeric(movies_cleaned$tomatometer_rating) #convert to numeric for regression analysis
 
 #check zeros in the numeric columns 
 zero_values <- sapply(movies_cleaned, function(x) sum(x == 0))
@@ -278,11 +281,38 @@ movies_cleaned <- left_join(movies_cleaned, movies_genres_encoded, by = "movie_t
 
 #cleaning up the environment by dropping the temporary data sets and unneeded values 
 rm(movies_genre_long, movies_genres_encoded, genre_occurrences, genre_occurrences_df, genre_balance, genre_balance_df)
-rm(genre_columns, genres_to_aggregate)
+rm(genres_to_aggregate)
 
-#check the cleaned data set 
-summary(movies_cleaned)
-str(movies_cleaned) 
+#additional feature engineering to add the required columns for hypothesis 2: seasonality  
+
+#check for blank values in the release date column 
+blank_release_dates <- sum(movies_cleaned$original_release_date == "")
+blank_release_dates #no blank values so we can proceed
+
+
+movies_cleaned$release_month <- format(movies_cleaned$original_release_date, "%m") #extract the month from the release date
+
+movies_cleaned$release_year <- format(movies_cleaned$original_release_date, "%Y") #extract the year from the release date
+movies_cleaned$release_month <- as.numeric(movies_cleaned$release_month) #convert to numeric for categorization
+
+movies_cleaned$season <- cut(movies_cleaned$release_month,
+                             breaks = c(0, 3, 6, 9, 12), # Adjust breaks to include December in Winter
+                             labels = c("Winter", "Spring", "Summer", "Fall"),
+                             right = TRUE) # Include the right endpoint in intervals
+
+summary(movies_cleaned$season) #check the season column
+
+#check the distribution of the seasons
+ggplot(movies_cleaned, aes(x = season)) + 
+  geom_bar(fill = "tomato", color = "navy") +
+  labs(title = "Distribution of Movies by Season",
+       x = "Season", 
+       y = "Number of Movies") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))  # Center the plot title
+
+#approximately equal distribution of movies across the seasons so we can proceed with the analysis 
+
 
 ## might need to scale the numeric columns before running the regression
 
