@@ -384,6 +384,21 @@ ggplot(movies_cleaned, aes(x = audience_count)) +
 #data is heavily right skewed should do a log transformation before running the regression 
 
 
+#check the distribution of the years in the data set 
+
+ggplot(movies_cleaned, aes(x = release_year)) + 
+  geom_histogram(fill = "tomato", color = "navy", bins = 30) +
+  labs(title = "Distribution of Release Years",
+       x = "Release Year", 
+       y = "Count") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))  # Center the plot title
+
+#data is skewed but this is expected, will consider this in the analysis 
+
+#maybe we should consider dropping movies released before 2000 to see if there is a difference in the ratings
+
+
 #examining effect of year on seasonlity of ratings 
 
 #data set to large for meaningful visualization so will subset to a smaller sample 
@@ -414,6 +429,7 @@ summary_sampled <- movies_sampled %>%
 comparison <- bind_rows(Full = summary_full, Sampled = summary_sampled)
 print(comparison)
 
+rm(summary_full, summary_sampled, comparison) #remove the temporary data sets
 
 #plot the relationship between release year and tomatometer rating by season
 year_breaks <- seq(min(movies_sampled$release_year, na.rm = TRUE),
@@ -443,16 +459,18 @@ years_seasonality <- ggplot(movies_sampled, aes(x = release_year, y = tomatomete
     legend.title = element_blank()
   )
 
-print(years_seasonality)
+print(years_seasonality) #years_seasonlity stored as a data object for later use 
+
+#while not entirely clear there seems to be between an inconsistent relationship betweeen release year and tomatometer rating by season, we will need to run a regression to confirm and include the interaction term 
+
+####### HYPOTHESIS TESTING AND MODELS ########  
 
 
-#while not entirely clear there seems to be between an inconsisten relationship betweeen release year and tomatometer rating by season, we will need to run a regression to confirm and include the interaction term 
+#split the cleaned data set into training and testing sets 
 
-
-
-
-
-####### HYPOTHESIS TESTING AND MODELS ######## 
+training_indices <- sample(1:nrow(movies_cleaned), 0.8 * nrow(movies_cleaned)) # 80% training data
+training_data <- movies_cleaned[training_indices, ] # Training data
+testing_data <- movies_cleaned[-training_indices, ] # Testing data
 
 
 #Hypothesis 1: 
