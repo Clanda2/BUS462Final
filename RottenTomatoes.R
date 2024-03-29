@@ -73,7 +73,7 @@ movies_cleaned$audience_count <- as.numeric(movies_cleaned$audience_count)
 movies_cleaned$original_release_date <- as.Date(movies_cleaned$original_release_date, format = "%Y-%m-%d")
 movies_cleaned$streaming_release_date <- as.Date(movies_cleaned$streaming_release_date, format = "%Y-%m-%d")
 movies_cleaned$genres <- as.factor(movies_cleaned$genres)
-movies$tomatometer_status <- factor(movies$tomatometer_status, levels = c("Rotten", "Fresh", "Certified-Fresh")) #convert tomatometer_status to factor with levels for regression analysis
+movies_cleaned$tomatometer_status <- factor(movies_cleaned$tomatometer_status, levels = c("Rotten", "Fresh", "Certified-Fresh")) #convert tomatometer_status to factor with levels for regression analysis
 
 #check zeros in the numeric columns 
 zero_values <- sapply(movies_cleaned, function(x) sum(x == 0))
