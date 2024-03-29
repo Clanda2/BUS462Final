@@ -2,7 +2,7 @@
 
 **Pull Requests** 
 
-Here are the steps to submit your contributions: 
+steps to change code and merge files 
 
 1) Fork the repository: Click the "Fork" button on the top right of the page to create your own copy of the repository
 2) Create a feature branch: Navigate to your fork and create a branch for your feature or fix. Name your branch something descriptive
