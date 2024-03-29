@@ -64,7 +64,8 @@ movies_cleaned <- na.omit(movies_cleaned) # Remove rows with missing values
 movies_cleaned <- movies_cleaned %>% select(-rotten_tomatoes_link) # Drop the rotten_tomatoes_link column 
 movies_cleaned <- movies_cleaned %>% select(-audience_status) # Drop the audience_status column 
 movies_cleaned <- movies_cleaned %>% 
-  filter(content_rating != "NC17") #Remove NC17 ratings as these are related to TV shows and not movies
+  filter(content_rating != "NC17") #Remove NC17 ratings as these are related to TV shows and not movies 
+movies_cleaned <- movies_cleaned %>% select(-movie_info) # Drop the movie_info column
 
 #converting the data types of the columns 
 movies_cleaned$runtime <- as.numeric(movies_cleaned$runtime)
@@ -183,6 +184,15 @@ ggplot(movies_cleaned, aes(x = "", y = num_authors)) +
         axis.ticks.x = element_blank(),  # Remove x axis ticks
         axis.text.x = element_blank())  # Remove x axis text
 
+#plot the distribution of the number of authors 
+ggplot(movies_cleaned, aes(x = num_authors)) + 
+  geom_histogram(fill = "tomato", color = "navy", bins = 30) +
+  labs(title = "Distribution of Number of Authors",
+       x = "Number of Authors", 
+       y = "Count") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))  # Center the plot title
+
 ## same here has outliers might consider a transformation or running the regression twice if including  
 
 #add a column for the number of directors 
@@ -272,7 +282,7 @@ rm(genre_columns, genres_to_aggregate)
 
 #check the cleaned data set 
 summary(movies_cleaned)
-str(movies_cleaned)
+str(movies_cleaned) 
 
 ## might need to scale the numeric columns before running the regression
 
@@ -304,7 +314,22 @@ corrplot(cor_matrix, method = "color", type = "upper",
 #matrix shows no multicollinearity so we can proceed with the analysis but will check VIF after model building
 
 
+#check stargazer for the summary statistics excluding the dummy variables 
+stargazer(movies_cleaned %>% select(-starts_with("genres")), type = "text")
 
+#plot the distribution of audience count had to use a log transformation to see the distribution 
+
+ggplot(movies_cleaned, aes(x = audience_count)) + 
+  geom_histogram(fill = "tomato", color = "navy", bins = 50) +  # Increased number of bins for more granularity
+  labs(title = "Distribution of Audience Count",
+       x = "Audience Count", 
+       y = "Count") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5)) +  # Center the plot title
+  scale_x_log10(labels = scales::comma) +  # Apply a log10 transformation
+  scale_y_continuous(labels = scales::comma)  # Ensure y-axis labels are not in scientific notation
+
+#data is heavily right skewed should do a log transformation before running the regression 
 
 ####### HYPOTHESIS TESTING AND MODELS ######## 
 
