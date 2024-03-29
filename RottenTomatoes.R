@@ -270,17 +270,41 @@ movies_cleaned <- left_join(movies_cleaned, movies_genres_encoded, by = "movie_t
 rm(movies_genre_long, movies_genres_encoded, genre_occurrences, genre_occurrences_df, genre_balance, genre_balance_df)
 rm(genre_columns, genres_to_aggregate)
 
-
 #check the cleaned data set 
 summary(movies_cleaned)
 str(movies_cleaned)
 
+## might need to scale the numeric columns before running the regression
 
 ####### EXPLORATORY ANALYSIS ######## 
 
-summary(movies_genres_encoded)
+#create a correlation matrix to check for multicollinearity and correlation between the numeric columns
 
-#create a correlation matrix to check for multicollinearity 
+numeric_columns <- movies_cleaned %>%
+  select(runtime, audience_rating, audience_count, tomatometer_rating, 
+         age_at_streaming, num_actors, num_authors, num_directors, 
+         tomatometer_fresh_critics_count) # Select only the numeric columns and exclude the dummy variables
+
+# Calculate the correlation matrix
+cor_matrix <- cor(numeric_columns, use = "complete.obs")  
+
+corrplot(cor_matrix, method = "color", type = "upper", 
+         order = "hclust", 
+         addCoef.col = "black", 
+         tl.col = "black", tl.srt = 45, 
+         diag = FALSE, 
+         cl.pos = "r", 
+         cl.ratio = 0.1,
+         tl.cex = 0.8, 
+         number.cex = 0.7, 
+         col = colorRampPalette(c("#6D9EC1", "white", "#E46726"))(200), 
+         title = "Correlation Matrix", 
+         mar = c(0,0,1,0)) 
+
+#matrix shows no multicollinearity so we can proceed with the analysis but will check VIF after model building
+
+
+
 
 ####### HYPOTHESIS TESTING AND MODELS ######## 
 
