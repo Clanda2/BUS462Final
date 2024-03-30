@@ -14,7 +14,8 @@ install.packages("googledrive")
 install.packages("corrplot") 
 install.packages("fastDummies")
 install.packages("httr")
-install.packages("timeDate")
+install.packages("timeDate") 
+install.packages("car")
 #loading the data and packages
 
 library(dplyr)
@@ -27,6 +28,7 @@ library(scales)
 library(stargazer)
 library(fastDummies)
 library(timeDate)
+library(car)
 
 drive_auth() #connecting to Google Drive API for data download
 file_id <- "https://drive.google.com/file/d/1LtLVMOV2yBkhXo-DrvXS3E5O_U_l1M0K/view?usp=drive_link"
@@ -336,7 +338,16 @@ season_visualization <- as.factor(movies_cleaned$season_visualization) #convert 
 #Check the data was properly encoded 
 
 
-## might need to scale the numeric columns before running the regression
+#Scaling the numeric columns for the regression analysis
+movies_cleaned$runtime <- scale(movies_cleaned$runtime)
+movies_cleaned$audience_count_scaled <- scale(movies_cleaned$audience_count)
+movies_cleaned$audience_rating <- scale(movies_cleaned$audience_rating)
+movies_cleaned$tomatometer_rating <- scale(movies_cleaned$tomatometer_rating)
+
+
+#scaling is done as the numeric columns have different scales and we want to ensure the model is not biased towards the larger values 
+#scaling changes the interpretation of the data to a percentage change in the dependent variable 
+#note that audience count has been retained and a new scaled column created for later analysis 
 
 ####### EXPLORATORY ANALYSIS ######## 
 
@@ -381,7 +392,10 @@ ggplot(movies_cleaned, aes(x = audience_count)) +
   scale_x_log10(labels = scales::comma) +  # Apply a log10 transformation
   scale_y_continuous(labels = scales::comma)  # Ensure y-axis labels are not in scientific notation
 
-#data is heavily right skewed should do a log transformation before running the regression 
+#data is heavily right skewed so we will apply a log transformation to the audience count column. 
+#note this changes the interpretation of the data to a percentage change in audience count 
+
+movies_cleaned$audience_count <- log1p(movies_cleaned$audience_count)
 
 
 #check the distribution of the years in the data set 
@@ -392,14 +406,14 @@ ggplot(movies_cleaned, aes(x = release_year)) +
        x = "Release Year", 
        y = "Count") +
   theme_minimal() +
-  theme(plot.title = element_text(hjust = 0.5))  # Center the plot title
+  theme(plot.title = element_text(hjust = 0.5))  # Center the plot title 
 
 #data is skewed but this is expected, will consider this in the analysis 
 
 #maybe we should consider dropping movies released before 2000 to see if there is a difference in the ratings
 
 
-#examining effect of year on seasonlity of ratings 
+#examining effect of year on seasonality of ratings 
 
 #data set to large for meaningful visualization so will subset to a smaller sample 
 sample_size <- floor(0.1 * nrow(movies_cleaned))
@@ -463,16 +477,55 @@ print(years_seasonality) #years_seasonlity stored as a data object for later use
 
 #while not entirely clear there seems to be between an inconsistent relationship betweeen release year and tomatometer rating by season, we will need to run a regression to confirm and include the interaction term 
 
-####### HYPOTHESIS TESTING AND MODELS ########  
 
+# Aggregating average ratings by year
+annual_avg_rating <- movies_cleaned %>%
+  group_by(release_year) %>%
+  summarise(average_rating = mean(tomatometer_rating, na.rm = TRUE))
+
+#fitting a linear regression model to the data
+linear_model <- lm(average_rating ~ release_year, data = annual_avg_rating) 
+
+#adding the fitted trend line to the plot
+ggplot(annual_avg_rating, aes(x = release_year, y = average_rating)) +
+  geom_point() +
+  geom_line(aes(y = predict(linear_model)), color = "red") +
+  theme_minimal() +
+  labs(title = "Trend of Average Tomatometer Rating Over Years",
+       x = "Release Year", y = "Average Tomatometer Rating")
+
+# Fitting a polynomial regression model (2nd degree as an example)
+fit <- lm(average_rating ~ poly(release_year, 2, raw=TRUE), data = annual_avg_rating)
+
+# Adding the fitted trend line to the plot
+ggplot(annual_avg_rating, aes(x = release_year, y = average_rating)) +
+  geom_point() +
+  geom_line(aes(y = predict(fit)), color = "red") +
+  theme_minimal() +
+  labs(title = "Trend of Average Tomatometer Rating Over Years",
+       x = "Release Year", y = "Average Tomatometer Rating")
+
+#ANOVA to check if the polynomial model is better than the linear model 
+
+anova(fit, linear_model) 
+
+#anova shows evidence of non-linearity so we may consider the polynomial model for the analysis 
+
+####### HYPOTHESIS TESTING AND MODELS ######## 
+
+#shuffling the data set to ensure randomness in the training and testing sets 
+
+set.seed(42) # Set seed for reproducibility
+movies_cleaned <- movies_cleaned[sample(nrow(movies_cleaned)), ] # Shuffle the data set
 
 #split the cleaned data set into training and testing sets 
-
 training_indices <- sample(1:nrow(movies_cleaned), 0.8 * nrow(movies_cleaned)) # 80% training data
 training_data <- movies_cleaned[training_indices, ] # Training data
 testing_data <- movies_cleaned[-training_indices, ] # Testing data
 
+#Key Question: what factors influence the tomatometer rating of a movie on Rotten Tomatoes? 
 
-#Hypothesis 1: 
+
+
 
 
