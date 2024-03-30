@@ -335,15 +335,75 @@ movies_cleaned$season_visualization <- factor(movies_cleaned$season_visualizatio
 
 season_visualization <- as.factor(movies_cleaned$season_visualization) #convert to factor for visualization
 
-#Check the data was properly encoded 
+#Check the data was properly encoded  
 
+#additional feature engineering to add the required columns for actor popularity scores 
+
+#Create actor_appearances table
+actor_appearances <- table(unlist(strsplit(as.character(movies_cleaned$actors), ",\\s*")))
+
+#Very large table, so will process in small batches for efficiency
+batch_size <- 100  # Set the batch size
+num_batches <- ceiling(nrow(movies_cleaned) / batch_size)
+actor_popularity_scores <- integer(nrow(movies_cleaned))  # Initialize the vector to store scores
+
+##This function takes a very long time to run 
+# Initialize variables for tracking progress
+current_row <- 1  # Start from the first row
+total_rows <- nrow(movies_cleaned)
+
+pb <- txtProgressBar(min = 0, max = total_rows, style = 3)  # Progress bar with accurate total steps
+
+# Loop through each row until all movies are processed
+while (current_row <= total_rows) {
+  setTxtProgressBar(pb, current_row)  # Update progress bar
+  
+  # Process the current row
+  actor_list <- strsplit(as.character(movies_cleaned$actors[current_row]), ",\\s*")[[1]]
+  actor_popularity_scores[current_row] <- sum(actor_appearances[actor_list])
+  
+  current_row <- current_row + 1  # Move to the next row
+}
+
+close(pb)  # Close the progress bar
+movies_cleaned$actor_popularity <- actor_popularity_scores #Assign the calculated scores back to the movies_cleaned data frame
+
+#check for zeros in the actor popularity scores
+sum(movies_cleaned$actor_popularity == 0) #no zeros so we can proceed 
+
+#remove the actors list column 
+movies_cleaned <- movies_cleaned %>% select(-actor_list)
+
+
+#Check for outliers in the actor popularity scores 
+
+ggplot(movies_cleaned, aes(x = "", y = actor_popularity)) + 
+  geom_boxplot(fill = "tomato", color = "navy") +
+  labs(title = "Distribution of Actor Popularity Scores",
+       x = "", 
+       y = "Actor Popularity Score") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),  # Center the plot title
+        axis.title.x = element_blank(),  # Remove x axis label
+        axis.ticks.x = element_blank(),  # Remove x axis ticks
+        axis.text.x = element_blank())  # Remove x axis text 
+
+#check distibution of actor popularity scores
+
+ggplot(movies_cleaned, aes(x = actor_popularity)) + 
+  geom_histogram(fill = "tomato", color = "navy", bins = 30) +
+  labs(title = "Distribution of Actor Popularity Scores",
+       x = "Actor Popularity Score", 
+       y = "Count") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))  # Center the plot title
 
 #Scaling the numeric columns for the regression analysis
 movies_cleaned$runtime <- scale(movies_cleaned$runtime)
 movies_cleaned$audience_count_scaled <- scale(movies_cleaned$audience_count)
 movies_cleaned$audience_rating <- scale(movies_cleaned$audience_rating)
-movies_cleaned$tomatometer_rating <- scale(movies_cleaned$tomatometer_rating)
-
+movies_cleaned$tomatometer_rating <- scale(movies_cleaned$tomatometer_rating) 
+movies_cleaned$actor_popularity <- scale(movies_cleaned$actor_popularity)
 
 #scaling is done as the numeric columns have different scales and we want to ensure the model is not biased towards the larger values 
 #scaling changes the interpretation of the data to a percentage change in the dependent variable 
