@@ -16,6 +16,8 @@ install.packages("fastDummies")
 install.packages("httr")
 install.packages("timeDate") 
 install.packages("car")
+install.packages("glmnet")
+install.packages("biglm")
 #loading the data and packages
 
 library(dplyr)
@@ -29,6 +31,9 @@ library(stargazer)
 library(fastDummies)
 library(timeDate)
 library(car)
+library(glmnet)
+library(caret)
+library(biglm)
 
 drive_auth() #connecting to Google Drive API for data download
 file_id <- "https://drive.google.com/file/d/1LtLVMOV2yBkhXo-DrvXS3E5O_U_l1M0K/view?usp=drive_link"
@@ -78,7 +83,7 @@ movies_cleaned$audience_count <- as.numeric(movies_cleaned$audience_count)
 movies_cleaned$original_release_date <- as.Date(movies_cleaned$original_release_date, format = "%Y-%m-%d")
 movies_cleaned$streaming_release_date <- as.Date(movies_cleaned$streaming_release_date, format = "%Y-%m-%d")
 movies_cleaned$genres <- as.factor(movies_cleaned$genres)
-movies_cleaned$tomatometer_status <- factor(movies_cleaned$tomatometer_status, levels = c("Rotten", "Fresh", "Certified-Fresh")) #convert tomatometer_status to factor with levels for regression analysis
+movies_cleaned$tomatometer_status <- as.actor(movies_cleaned$tomatometer_status, levels = c("Rotten", "Fresh", "Certified-Fresh")) #convert tomatometer_status to factor with levels for regression analysis
 movies_cleaned$tomatometer_rating <- as.numeric(movies_cleaned$tomatometer_rating) #convert to numeric for regression analysis
 
 #check zeros in the numeric columns 
@@ -405,6 +410,8 @@ movies_cleaned$audience_rating <- scale(movies_cleaned$audience_rating)
 movies_cleaned$tomatometer_rating <- scale(movies_cleaned$tomatometer_rating) 
 movies_cleaned$actor_popularity <- scale(movies_cleaned$actor_popularity)
 
+movies_cleaned$actor_popularity <- as.numeric(movies_cleaned$actor_popularity) #convert to numeric for regression analysis
+
 #scaling is done as the numeric columns have different scales and we want to ensure the model is not biased towards the larger values 
 #scaling changes the interpretation of the data to a percentage change in the dependent variable 
 #note that audience count has been retained and a new scaled column created for later analysis 
@@ -420,7 +427,7 @@ write.csv(movies_cleaned, "movies_cleaned.csv", row.names = FALSE)
 numeric_columns <- movies_cleaned %>%
   select(runtime, audience_rating, audience_count, tomatometer_rating, 
          age_at_streaming, num_actors, num_authors, num_directors, 
-         tomatometer_fresh_critics_count) # Select only the numeric columns and exclude the dummy variables
+         tomatometer_fresh_critics_count, actor_popularity) # Select only the numeric columns and exclude the dummy variables
 
 # Calculate the correlation matrix
 cor_matrix <- cor(numeric_columns, use = "complete.obs")  
@@ -577,19 +584,65 @@ anova(fit, linear_model)
 
 ####### HYPOTHESIS TESTING AND MODELS ######## 
 
-#shuffling the data set to ensure randomness in the training and testing sets 
+#Key Question: what factors influence the tomatometer rating of a movie on Rotten Tomatoes?  
 
-set.seed(42) # Set seed for reproducibility
+
+
+movies_cleaned <- read.csv("/Users/chase/Documents/movies_cleaned.csv" , header = TRUE)  
+
+#remove unneeded columns
+movies_cleaned <- movies_cleaned %>% select(-c(movie_title, actors, authors, directors, tomatometer_status, season_visualization))
+movies_cleaned$content_rating <- factor(movies_cleaned$content_rating, levels = c("PG", "NR", "PG-13", "G", "R")) 
+
+#shuffling the data set to ensure randomness in the training and testing sets 
 movies_cleaned <- movies_cleaned[sample(nrow(movies_cleaned)), ] # Shuffle the data set
 
-#split the cleaned data set into training and testing sets 
-training_indices <- sample(1:nrow(movies_cleaned), 0.8 * nrow(movies_cleaned)) # 80% training data
-training_data <- movies_cleaned[training_indices, ] # Training data
-testing_data <- movies_cleaned[-training_indices, ] # Testing data
 
-#Key Question: what factors influence the tomatometer rating of a movie on Rotten Tomatoes? 
+#splitting the data set into training and testing sets
+set.seed(123) # Ensure reproducibility
+training_indices <- createDataPartition(movies_cleaned$tomatometer_rating, p = 0.8, list = FALSE)
+training_set <- movies_cleaned[training_indices, ]
+testing_set <- movies_cleaned[-training_indices, ] 
+
+#Model 1: Linear Regression Model
+
+# Get all the column names that start with "genres_"
+genre_vars <- grep("^genres_", names(training_set), value = TRUE)
+
+# Remove one genre to serve as the reference level, avoiding the dummy variable trap
+genre_vars <- setdiff(genre_vars, "genres_Other")
+
+genre_formula_part <- paste(grep("^genres_", names(training_set), value = TRUE), collapse = " + ")# Create a string with all genre variable formula parts
+formula_str <- paste("tomatometer_rating ~ content_rating + runtime + actor_popularity +",
+                     genre_formula_part, "+ season_Spring + season_Summer + season_Fall + release_year + release_month + audience_count_scaled")# Add other predictors to the formula string
+full_formula <- as.formula(formula_str) # Create a formula object from the string
+
+modelKS <- lm(full_formula, data = training_set) #R2 = 0.2248
+summary(modelKS) 
+
+#check the AIC 
+AIC(modelKS) 
+
+
+#Creating string for the predictors to use in the LASSO regression removing tomater_rating as it is the dependent variable
+predictors_str <- paste("content_rating + runtime + actor_popularity +",
+                        genre_formula_part, "+ season_Spring + season_Summer + season_Fall + release_year + release_month + audience_count_scaled")
+
+
+#next we will use LASSO regression instead of stepwise regression to handle the multicollinearity and balance the genres
+
+x <- model.matrix(as.formula(paste("~", predictors_str)), data = training_set)
+y <- training_set$tomatometer_rating
+
+cv_lasso <- cv.glmnet(x, y, alpha = 1, standardize = TRUE, nfolds = 10) #10 fold cross validation
+best_lambda <- cv_lasso$lambda.min #The lambda that gives the minimum mean cross-validated error
+final_lasso_model <- glmnet(x, y, alpha = 1, standardize = TRUE, lambda = best_lambda) #Fit the final LASSO model using the selected lambda
+coef(final_lasso_model) #Examine the coefficients
+
+#LASSO retained all the variables so we will use the full model for the analysis 
 
 
 
+ 
 
 
