@@ -352,7 +352,7 @@ batch_size <- 100  # Set the batch size
 num_batches <- ceiling(nrow(movies_cleaned) / batch_size)
 actor_popularity_scores <- integer(nrow(movies_cleaned))  # Initialize the vector to store scores
 
-##This function takes a very long time to run 
+##WARNING - This function takes a very long time to run 
 # Initialize variables for tracking progress
 current_row <- 1  # Start from the first row
 total_rows <- nrow(movies_cleaned)
@@ -377,7 +377,10 @@ movies_cleaned$actor_popularity <- actor_popularity_scores #Assign the calculate
 sum(movies_cleaned$actor_popularity == 0) #no zeros so we can proceed 
 
 #remove the actors list column 
-movies_cleaned <- movies_cleaned %>% select(-actor_list)
+movies_cleaned <- movies_cleaned %>% select(-actor_list) 
+
+
+movies_cleaned$audience_count <- log1p(movies_cleaned$audience_count) #apply a log transformation to the auidence_count
 
 
 #Check for outliers in the actor popularity scores 
@@ -403,21 +406,11 @@ ggplot(movies_cleaned, aes(x = actor_popularity)) +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5))  # Center the plot title
 
-#Scaling the numeric columns for the regression analysis
-movies_cleaned$runtime <- scale(movies_cleaned$runtime)
-movies_cleaned$audience_count_scaled <- scale(movies_cleaned$audience_count)
-movies_cleaned$audience_rating <- scale(movies_cleaned$audience_rating)
-movies_cleaned$tomatometer_rating <- scale(movies_cleaned$tomatometer_rating) 
-movies_cleaned$actor_popularity <- scale(movies_cleaned$actor_popularity)
-
 movies_cleaned$actor_popularity <- as.numeric(movies_cleaned$actor_popularity) #convert to numeric for regression analysis
 
-#scaling is done as the numeric columns have different scales and we want to ensure the model is not biased towards the larger values 
-#scaling changes the interpretation of the data to a percentage change in the dependent variable 
-#note that audience count has been retained and a new scaled column created for later analysis 
 
 #save the cleaned data set to a csv file
-write.csv(movies_cleaned, "movies_cleaned.csv", row.names = FALSE)
+write.csv(movies_cleaned, "movies_cleaned_2.csv", row.names = FALSE)
 
 
 ####### EXPLORATORY ANALYSIS ######## 
@@ -466,7 +459,6 @@ ggplot(movies_cleaned, aes(x = audience_count)) +
 #data is heavily right skewed so we will apply a log transformation to the audience count column. 
 #note this changes the interpretation of the data to a percentage change in audience count 
 
-movies_cleaned$audience_count <- log1p(movies_cleaned$audience_count)
 
 
 #check the distribution of the years in the data set 
