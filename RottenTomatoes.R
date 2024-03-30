@@ -409,6 +409,10 @@ movies_cleaned$actor_popularity <- scale(movies_cleaned$actor_popularity)
 #scaling changes the interpretation of the data to a percentage change in the dependent variable 
 #note that audience count has been retained and a new scaled column created for later analysis 
 
+#save the cleaned data set to a csv file
+write.csv(movies_cleaned, "movies_cleaned.csv", row.names = FALSE)
+
+
 ####### EXPLORATORY ANALYSIS ######## 
 
 #create a correlation matrix to check for multicollinearity and correlation between the numeric columns
