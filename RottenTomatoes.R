@@ -620,6 +620,20 @@ full_formula <- as.formula(formula_str) # Create a formula object from the strin
 modelKS <- lm(full_formula, data = training_set) #R2 = 0.2248
 summary(modelKS) 
 
+formula_2 <- paste("tomatometer_rating ~ content_rating + runtime +",
+                     genre_formula_part, "+ season_Spring + season_Summer + season_Fall + release_month + poly(release_year, 2, raw = TRUE)") # Add other predictors to the formula string
+
+formula_2 <- as.formula(formula_2) # Create a formula object from the string
+model1 <- lm(formula_2, data = training_set) 
+summary(model1) #R2 =0.2291 
+
+model2 <- lm(tomatometer_rating ~ content_rating + runtime + actor_popularity + 
+               genres_Action...Adventure + genres_Comedy + genres_Documentary + 
+               genres_Drama + genres_Kids...Family + genres_Horror + 
+               genres_Romance + genres_Other + release_year + audience_count_scaled, data = training_set) 
+summary(model2) #R2 = 0.2119 
+
+
 #check the AIC 
 AIC(modelKS) 
 
@@ -641,8 +655,55 @@ coef(final_lasso_model) #Examine the coefficients
 
 #LASSO retained all the variables so we will use the full model for the analysis 
 
+#add the interaction effects between release year and season and genre and runtime and accomodate for non-linearity in release year 
+
+# Get all the column names that start with "genres_"
+season_vars <- grep("^season_", names(training_set), value = TRUE)
+
+# Remove one genre to serve as the reference level, avoiding the dummy variable trap
+sesaon_vars <- setdiff(season_vars, "season_Spring")
 
 
- 
+# Create the interaction terms
+genre_runtime_interactions <- paste("runtime", genre_vars, sep=":", collapse=" + ")
+season_year_interactions <- paste(season_vars, "release_year", sep=":", collapse=" + ")
+
+# For non-linearity in 'release_year', add polynomial terms (quadratic example)
+non_linear_year <- "poly(release_year, 2, raw = TRUE)"
+
+# Update the predictors string to include interaction terms, non-linear year term, and other predictors
+predictors_str <- paste("content_rating",
+                        "runtime",
+                        "actor_popularity",
+                        genre_formula_part,
+                        season_vars,
+                        "release_month",
+                        "audience_count_scaled",
+                        genre_runtime_interactions,
+                        season_year_interactions,
+                        non_linear_year,
+                        sep=" + ")
+
+# Construct the full formula including interaction and polynomial terms
+full_formula_str <- paste("tomatometer_rating ~", predictors_str)
+full_formula <- as.formula(full_formula_str)
+
+# Create the model matrix with interaction and polynomial terms
+x <- model.matrix(full_formula, data = training_set)
+y <- training_set$tomatometer_rating
+
+# Run the LASSO model with cross-validation to find the optimal lambda
+cv_lasso <- cv.glmnet(x, y, alpha = 1, standardize = TRUE, nfolds = 10)
+best_lambda <- cv_lasso$lambda.min
+
+# Fit the final LASSO model using the selected lambda
+final_lasso_model <- glmnet(x, y, alpha = 1, standardize = TRUE, lambda = best_lambda)
+
+# Check the coefficients to see the effect of the interactions and non-linear terms
+print(coef(final_lasso_model))
+
+
+
+ ## all of these are poor model fits need to ask CK about this
 
 
