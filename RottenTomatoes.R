@@ -577,9 +577,9 @@ anova(fit, linear_model)
 ####### HYPOTHESIS TESTING AND MODELS ######## 
 
 #Key Question: what factors influence the tomatometer rating of a movie on Rotten Tomatoes?   
+movies_cleaned <- read.csv("/Users/chase/Documents/movies_cleaned_2.csv" , header = TRUE)
 
-#remove unneeded columns
-movies_cleaned <- movies_cleaned %>% select(-c(movie_title, actors, authors, directors, tomatometer_status, season_visualization))
+
 movies_cleaned$content_rating <- factor(movies_cleaned$content_rating, levels = c("PG", "NR", "PG-13", "G", "R")) 
 
 #shuffling the data set to ensure randomness in the training and testing sets 
@@ -590,6 +590,83 @@ set.seed(123) # Ensure reproducibility
 training_indices <- createDataPartition(movies_cleaned$tomatometer_rating, p = 0.8, list = FALSE)
 training_set <- movies_cleaned[training_indices, ]
 testing_set <- movies_cleaned[-training_indices, ] 
+
+
+
+##### Hypothesis 2: The season in which a movie is released influences its tomatometer rating on Rotten Tomatoes. ##### 
+
+season_model <- lm(tomatometer_rating ~ season_Fall + season_Spring + season_Summer, data = training_set) #fit a linear regression model to the data 
+summary(season_model) #check the summary statistics
+
+#model shows that winter and fall are significant predictators of tomatomer rating, with summer being less 
+#signifigant, spring is not significant. This is suspect as the data set is balanced so we will consider interaction terms and additionl variables 
+
+#overall model is signifigant but has an extremely low R2 
+
+par(mforw = c(2, 2)) 
+plot(season_model) #plot the diagnostic plots for the model 
+
+#plot is highly unusual and suggests non-linearity and outliers 
+
+#check the VIF to ensure no multicollinearity
+vif(season_model) 
+
+
+season_model2 <- lm(tomatometer_rating ~ season_Fall + season_Spring + season_Summer + release_year, data = training_set)
+summary(season_model2)
+
+#addition of release_year signifiantly improves the model, and changes significance of the seasons with season_summar no longer being significant. 
+#model shows a decreasing trend in overall ratings but this is likely due to the increase in data over time and non-linear relationship 
+#interaction between seasonlity and year is suspected so we will include an interaction term 
+
+#R2 = 0.06319 
+
+#check the plots 
+par(mfrow = c(2, 2))  # Set the layout to 2x2 plots 
+plot(season_model2)  # Plot the diagnostic plots for the model
+
+#plots suggest non-linearity and slight homoscedasticity  
+
+season_model3 <- lm(tomatometer_rating ~ season_Fall * release_year + season_Spring * release_year + season_Summer * release_year, data = training_set)
+summary(season_model3) 
+
+#new modles shows the rating for winter release is significantly higher than the other seasons, however the effect of this decreases slightly each year
+#all variables are now significant and the R2 has increased to 0.06406 showing a very slight improvement 
+
+plot(season_model3) #plot the diagnostic plots for the model
+#plot still shows non-linearity and slight homoscedasticity so we will consider a polynomial model 
+
+season_model4 <- lm(tomatometer_rating ~ poly(release_year, 2, raw = TRUE) + season_Fall * release_year + season_Spring * release_year + season_Summer * release_year, data = training_set)
+summary(season_model4)
+plot(season_model4) #plot the diagnostic plots for the model 
+
+#the model improves here suggesting a non-linear relationship between release year and tomatometer rating 
+#all seasons and interaction effects are non-significant but the overall model is significant with an R2 of 0.0862 
+
+#plots stil suggest non-linearity and homoescadity not sure how to fix this 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
