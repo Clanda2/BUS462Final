@@ -17,7 +17,8 @@ install.packages("httr")
 install.packages("timeDate") 
 install.packages("car")
 install.packages("glmnet")
-install.packages("biglm")
+
+
 #loading the data and packages
 
 library(dplyr)
@@ -33,7 +34,7 @@ library(timeDate)
 library(car)
 library(glmnet)
 library(caret)
-library(biglm)
+
 
 drive_auth() #connecting to Google Drive API for data download
 file_id <- "https://drive.google.com/file/d/1LtLVMOV2yBkhXo-DrvXS3E5O_U_l1M0K/view?usp=drive_link"
@@ -574,12 +575,12 @@ anova(fit, linear_model)
 
 #anova shows evidence of non-linearity so we may consider the polynomial model for the analysis 
 
-####### HYPOTHESIS TESTING AND MODELS ######## 
+####### HYPOTHESIS TESTING AND MODELS ########  
+
+
 
 #Key Question: what factors influence the tomatometer rating of a movie on Rotten Tomatoes?   
-movies_cleaned <- read.csv("/Users/chase/Documents/movies_cleaned_2.csv" , header = TRUE)
-
-
+movies_cleaned <- read.csv("/Users/chase/Documents/movies_cleaned_2.csv" , header = TRUE) 
 movies_cleaned$content_rating <- factor(movies_cleaned$content_rating, levels = c("PG", "NR", "PG-13", "G", "R")) 
 
 #shuffling the data set to ensure randomness in the training and testing sets 
@@ -593,12 +594,34 @@ testing_set <- movies_cleaned[-training_indices, ]
 
 
 
+lm_modelKS <- lm(tomatometer_rating ~ runtime + age_at_streaming + content_rating + actor_popularity + 
+                  genres_Comedy + genres_Horror + genres_Art.House...International + 
+                  genres_Documentary + genres_Drama + genres_Kids...Family + 
+                  genres_Musical...Performing.Arts + genres_Mystery...Suspense + 
+                  genres_Science.Fiction...Fantasy + genres_Special.Interest + 
+                  audience_count + release_year + season_Winter + season_Summer +  
+                  season_Fall + num_authors + num_directors + num_actors + release_month, data = training_set) #fit a linear regression model to the data
+
+summary(lm_modelKS) #check the summary statistics)
+
+
+#run stepwise regression to determine the best model 
+
+stepwise_model <- step(lm_modelKS, direction = "both") #run stepwise regression
+summary(stepwise_model) #check the summary statistics 
+par(mfrow = c(2, 2))  # Set the layout to 2x2 plots 
+plot(stepwise_model)
+
+
+
+
+
 ##### Hypothesis 2: The season in which a movie is released influences its tomatometer rating on Rotten Tomatoes. ##### 
 
 season_model <- lm(tomatometer_rating ~ season_Fall + season_Spring + season_Summer, data = training_set) #fit a linear regression model to the data 
 summary(season_model) #check the summary statistics
+#model shows that winter and fall are significant predictors of tomatomer rating, with summer being less 
 
-#model shows that winter and fall are significant predictators of tomatomer rating, with summer being less 
 #signifigant, spring is not significant. This is suspect as the data set is balanced so we will consider interaction terms and additionl variables 
 
 #overall model is signifigant but has an extremely low R2 
@@ -618,8 +641,8 @@ summary(season_model2)
 #addition of release_year signifiantly improves the model, and changes significance of the seasons with season_summar no longer being significant. 
 #model shows a decreasing trend in overall ratings but this is likely due to the increase in data over time and non-linear relationship 
 #interaction between seasonlity and year is suspected so we will include an interaction term 
-
 #R2 = 0.06319 
+
 
 #check the plots 
 par(mfrow = c(2, 2))  # Set the layout to 2x2 plots 
@@ -637,37 +660,12 @@ plot(season_model3) #plot the diagnostic plots for the model
 #plot still shows non-linearity and slight homoscedasticity so we will consider a polynomial model 
 
 season_model4 <- lm(tomatometer_rating ~ poly(release_year, 2, raw = TRUE) + season_Fall * release_year + season_Spring * release_year + season_Summer * release_year, data = training_set)
-summary(season_model4)
+summary(season_model4) #R2 = 0.08323 
 plot(season_model4) #plot the diagnostic plots for the model 
 
 #the model improves here suggesting a non-linear relationship between release year and tomatometer rating 
 #all seasons and interaction effects are non-significant but the overall model is significant with an R2 of 0.0862 
 
-#plots stil suggest non-linearity and homoescadity not sure how to fix this 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+#plots still suggest non-linearity and homoescadity not sure how to fix this 
 
 
