@@ -16,8 +16,11 @@ install.packages("fastDummies")
 install.packages("httr")
 install.packages("timeDate") 
 install.packages("car")
-install.packages("glmnet")
-
+install.packages("glmnet") 
+install.packages("lmtest") 
+install.packages("sandwich")
+install.packages("rpart") 
+install.packages("rpart.plot")
 
 #loading the data and packages
 
@@ -34,10 +37,12 @@ library(timeDate)
 library(car)
 library(glmnet)
 library(caret)
+library(rpart)
+library(rpart.plot)
 
 
 drive_auth() #connecting to Google Drive API for data download
-file_id <- "https://drive.google.com/file/d/1LtLVMOV2yBkhXo-DrvXS3E5O_U_l1M0K/view?usp=drive_link"
+file_id <- "https://drive.google.com/file/d/1LtLVMOV2yBkhXo-DrvXS3E5O_U_l1M0K/view?usp=drive_link" #remove this before pushing to GitHub 
 downloaded_file <- drive_download(as_id(file_id),overwrite = TRUE) 
 movies <- read.csv(downloaded_file$name, header = TRUE)
 rm(downloaded_file, file_id)                        
@@ -414,7 +419,7 @@ movies_cleaned$actor_popularity <- as.numeric(movies_cleaned$actor_popularity) #
 write.csv(movies_cleaned, "movies_cleaned_2.csv", row.names = FALSE)
 
 
-####### EXPLORATORY ANALYSIS ######## 
+####### Question 3 - EXPLORATORY ANALYSIS ######## 
 
 #create a correlation matrix to check for multicollinearity and correlation between the numeric columns
 
@@ -577,8 +582,6 @@ anova(fit, linear_model)
 
 ####### HYPOTHESIS TESTING AND MODELS ########  
 
-
-
 #Key Question: what factors influence the tomatometer rating of a movie on Rotten Tomatoes?   
 movies_cleaned <- read.csv("/Users/chase/Documents/movies_cleaned_2.csv" , header = TRUE) 
 movies_cleaned$content_rating <- factor(movies_cleaned$content_rating, levels = c("PG", "NR", "PG-13", "G", "R")) 
@@ -593,6 +596,8 @@ training_set <- movies_cleaned[training_indices, ]
 testing_set <- movies_cleaned[-training_indices, ] 
 
 
+#running the first OLS regression model including all relevant variables, with no interactions or transformations at this point 
+
 
 lm_modelKS <- lm(tomatometer_rating ~ runtime + age_at_streaming + content_rating + actor_popularity + 
                   genres_Comedy + genres_Horror + genres_Art.House...International + 
@@ -602,19 +607,229 @@ lm_modelKS <- lm(tomatometer_rating ~ runtime + age_at_streaming + content_ratin
                   audience_count + release_year + season_Winter + season_Summer +  
                   season_Fall + num_authors + num_directors + num_actors + release_month, data = training_set) #fit a linear regression model to the data
 
-summary(lm_modelKS) #check the summary statistics)
+summary(lm_modelKS) #check the summary statistics) #R2 = 0.2459, P-value = 2.2e-16 (signifigant)
+
+#check for multicollinearity 
+vif(lm_modelKS) #check the VIF to ensure no multicollinearity
+
+#ask expected, age_at_streaming and release year are highly correlated so we will remove release_year from the model 
+lm_model1 <- lm(tomatometer_rating ~ runtime + age_at_streaming + content_rating + actor_popularity + 
+                   genres_Comedy + genres_Horror + genres_Art.House...International + 
+                   genres_Documentary + genres_Drama + genres_Kids...Family + 
+                   genres_Musical...Performing.Arts + genres_Mystery...Suspense + 
+                   genres_Science.Fiction...Fantasy + genres_Special.Interest + 
+                   audience_count + season_Winter + season_Summer +  
+                   season_Fall + num_authors + num_directors + num_actors + release_month, data = training_set) 
+
+summary(lm_model1) #check the summary statistics) #R2 = 0.243, P-value = 2.2e-16 (signifigant)
+plot(lm_model1) #check the residuals
+
+#plot shows a number of issues including non-linearity, outliers and heteroscedasticity so we will address these issues in step 
+
+#step 1 - cook's distance shows one very extreme outlier so we will identify what this is 
+cooks_distance <- cooks.distance(lm_model1)  # Calculate Cook's distance 
+outlier_index <- which(cooks_distance > 20 / nrow(training_set))  # Identify extreme outliers with Cook's distance greater than 20/n
+outlier_index #print the index of the outlier
 
 
-#run stepwise regression to determine the best model 
+#inspect why this movie is an outlier 
+outlier_movie_data <- training_set[outlier_index, ]  # Extract the outlier movie data
+outlier_movie_data #print the outlier movie data 
 
-stepwise_model <- step(lm_modelKS, direction = "both") #run stepwise regression
-summary(stepwise_model) #check the summary statistics 
-par(mfrow = c(2, 2))  # Set the layout to 2x2 plots 
-plot(stepwise_model)
-
-
+#these movies are outliers because they have a very high number of authors, actors and directors we will remove them in a new data set and 
+#re-run the model to see if it improves
 
 
+#remove the outlier movie from the data set
+
+movies_cleaned_removed <- movies_cleaned[-outlier_index, ]  # Remove the outlier movie from the cleaned data and resplit the data 
+rm(training_set, testing_set) 
+
+#reshuffle the data set to ensure randomness in the training and testing sets 
+movies_cleaned_removed <- movies_cleaned_removed[sample(nrow(movies_cleaned_removed)), ] # Shuffle the data set
+
+#re-split the data set into training and testing sets 
+set.seed(123) # Ensure reproducibility
+training_indices <- createDataPartition(movies_cleaned_removed$tomatometer_rating, p = 0.8, list = FALSE)
+training_set <- movies_cleaned_removed[training_indices, ]
+testing_set <- movies_cleaned_removed[-training_indices, ]
+
+
+#re-run the model
+lm_model2 <- lm(tomatometer_rating ~ runtime + age_at_streaming + content_rating + actor_popularity + 
+                  genres_Comedy + genres_Horror + genres_Art.House...International + 
+                  genres_Documentary + genres_Drama + genres_Kids...Family + 
+                  genres_Musical...Performing.Arts + genres_Mystery...Suspense + 
+                  genres_Science.Fiction...Fantasy + genres_Special.Interest + 
+                  audience_count + season_Winter + season_Summer +  
+                  season_Fall + num_authors + num_directors + num_actors + release_month, data = training_set) 
+
+summary(lm_model2) #check the summary statistics) #R2 = 0.24, P-value = 2.2e-16 (signifigant)
+plot(lm_model2) #check the residuals
+
+#come back to confirm this is a correct step 
+
+#step 2 - addressing non-linearity
+
+#adding interaction terms 
+
+interaction_formula <- as.formula(
+  "tomatometer_rating ~ runtime + age_at_streaming + content_rating +
+   actor_popularity + audience_count + num_authors + num_directors +
+   num_actors + release_month +
+   content_rating:genres_Comedy + content_rating:genres_Horror +
+   content_rating:genres_Art.House...International +
+   content_rating:genres_Documentary + content_rating:genres_Drama +
+   content_rating:genres_Kids...Family + content_rating:genres_Musical...Performing.Arts +
+   content_rating:genres_Mystery...Suspense + content_rating:genres_Science.Fiction...Fantasy +
+   content_rating:genres_Special.Interest +
+   season_Spring:age_at_streaming + season_Summer:age_at_streaming +
+   season_Fall:age_at_streaming + season_Winter:age_at_streaming"
+)
+
+# Fit the updated model with interaction terms
+lm_model3 <- lm(interaction_formula, data = training_set)
+summary(lm_model3) #R2 = 0.2537
+plot(lm_model3)
+
+#adding polynomial terms to account for non-linearity in year and content ratings 
+
+poly_formula <- as.formula(
+  "tomatometer_rating ~ runtime + age_at_streaming + content_rating +
+   actor_popularity + audience_count + num_authors + num_directors +
+   num_actors + release_month +
+   content_rating:genres_Comedy + content_rating:genres_Horror +
+   content_rating:genres_Art.House...International +
+   content_rating:genres_Documentary + content_rating:genres_Drama +
+   content_rating:genres_Kids...Family + content_rating:genres_Musical...Performing.Arts +
+   content_rating:genres_Mystery...Suspense + content_rating:genres_Science.Fiction...Fantasy +
+   content_rating:genres_Special.Interest +
+   season_Spring:age_at_streaming + season_Summer:age_at_streaming +
+   season_Fall:age_at_streaming + season_Winter:age_at_streaming +
+   poly(runtime, 2, raw = TRUE) + poly(age_at_streaming, 2, raw = TRUE) +
+   poly(actor_popularity, 2, raw = TRUE) + poly(audience_count, 2, raw = TRUE) +
+   poly(num_authors, 2, raw = TRUE) + poly(num_directors, 2, raw = TRUE) +
+   poly(num_actors, 2, raw = TRUE) + poly(release_month, 2, raw = TRUE)"
+)
+
+# Fit the updated model with polynomial terms
+lm_model4 <- lm(poly_formula, data = training_set)
+summary(lm_model4) #R2 = 0.2723
+plot(lm_model4) 
+
+#running stepwise regression to determine the best model 
+
+lm_model5<- step(lm_model4, direction = "both", trace = 1) #run the stepwise regression model
+summary(lm_model5)
+plot(lm_model5) 
+
+
+
+#stepwise regression does not remove any variables so we will consider this the model for now 
+
+#test the model on the testing set 
+
+# Prepare the data for prediction 
+
+# Extract the predictors and response variable 
+
+
+#model still has a non-linear relationship so we will consider a LASO regression to handle this 
+
+# Fit a LASSO regression model using the same variables as before 
+
+# Prepare the data for the LASSO model 
+
+# Extract the predictors and response variable
+X <- model.matrix(lm_model4)[, -1]  # Remove the intercept column 
+y <- training_set$tomatometer_rating
+
+# Fit the LASSO model 
+lasso_model <- cv.glmnet(X, y, alpha = 1, family = "gaussian")  # Fit the LASSO model with cross-validation
+summary(lasso_model) 
+plot(lasso_model)
+
+#extract the best lambda value 
+best_lambda <- lasso_model$lambda.min
+best_lambda #0.02742045
+
+#apply the best lambda value to the model 
+lasso_model_best <- glmnet(X, y, alpha = 1, lambda = best_lambda, family = "gaussian")  # Fit the LASSO model with the best lambda value
+
+#extract the coefficients from the model 
+coef(lasso_model_best)
+
+
+#predict the tomatometer rating using the LASSO model 
+y_predicted <- predict(lasso_model_best, s = best_lambda, newx = X)  # Predict the tomatometer rating using the LASSO model
+sst <- sum((y - mean(y))^2)  # Calculate the total sum of squares 
+sse <- sum((y - y_predicted)^2)  # Calculate the sum of squared errors
+r_squared <- 1 - sse / sst  # Calculate the R-squared value
+r_squared #0.2718 
+
+
+#check the residuals of the LASSO model 
+residuals <- y - y_predicted  # Calculate the residuals
+qqnorm(residuals)  # Create a QQ plot of the residuals
+qqline(residuals)  # Add a line to the QQ plot
+hist(residuals, breaks = 30, col = "tomato", border = "navy")  # Create a histogram of the residuals
+
+
+#LASSO model shows no improvement in R2 so we will consider the stepwise model as the final model 
+
+
+AIC(lm_model5, lm_model4, lm_model3, lm_model2, lm_model1, lm_modelKS) #AIC shows the stepwise model is the best model 
+
+stargazer(lm_model5, type = "text") 
+
+#cross validation of the model 
+
+train_control <- trainControl(method = "cv", number = 10)  # Set up the cross-validation method 
+lm_model5_cv <- train(poly_formula, data = training_set, method = "lm", trControl = train_control)  # Fit the model using cross-validation
+lm_model5_cv$results  # Display the results of the cross-validation
+
+#using the test set to validate the model 
+
+predictions <- predict(lm_model5, newdata = testing_set)  # Make predictions on the testing set 
+rmse <- sqrt(mean((testing_set$tomatometer_rating - predictions)^2))  # Calculate the RMSE 
+print(paste("RMSE:", round(rmse, 2)))  # Print the RMSE 
+
+mae <- mean(abs(testing_set$tomatometer_rating - predictions))  # Calculate the MAE
+print(paste("MAE:", round(mae, 2)))  # Print the MAE
+
+
+results_df <- data.frame(Actual = testing_set$tomatometer_rating, Predicted = predictions) # Creating a data frame with actual and predicted values
+
+# Plotting Actual vs Predicted values
+ggplot(results_df, aes(x = Actual, y = Predicted)) +
+  geom_point(aes(color = Actual), size = 2, alpha = 0.6) + 
+  scale_color_gradient(low = "blue", high = "red") + 
+  geom_smooth(method = lm, se = TRUE, color = 'darkred', fill = 'pink') +  
+  xlab("Actual Tomatometer Rating") + 
+  ylab("Predicted Tomatometer Rating") + 
+  ggtitle("Actual vs Predicted Tomatometer Rating") +
+  theme_minimal(base_size = 14) +  
+  theme( 
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    axis.title = element_text(face = "bold"),
+    legend.title = element_blank(),  
+    legend.position = "bottom"  
+  ) +
+  guides(color = guide_legend(title.position = "top"))  
+
+
+
+#cross-validation on the test set to compare RMSE 
+
+lm_model5_cv <- train(poly_formula, data = testing_set, method = "lm", trControl = train_control)  # Fit the model using cross-validation 
+lm_model5_cv$results  # Display the results of the cross-validation 
+
+
+#cross fold validation and prediction on the test data show an R2 of 0.265, suggesting this model captures ~26% of the variance in the data set 
+
+
+
+#things to fix tomorrow, reduce the genres column to incorporate more into the others column, consider scaling the factors, removing extreme outliers and possibly using a more advanced model to capture the non-lineatiy 
 
 ##### Hypothesis 2: The season in which a movie is released influences its tomatometer rating on Rotten Tomatoes. ##### 
 
