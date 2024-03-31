@@ -21,7 +21,7 @@ install.packages("lmtest")
 install.packages("sandwich")
 install.packages("rpart") 
 install.packages("rpart.plot")
-
+install.packages("pscl")
 #loading the data and packages
 
 library(dplyr)
@@ -39,7 +39,7 @@ library(glmnet)
 library(caret)
 library(rpart)
 library(rpart.plot)
-
+library(pscl)
 
 drive_auth() #connecting to Google Drive API for data download
 file_id <- "https://drive.google.com/file/d/1LtLVMOV2yBkhXo-DrvXS3E5O_U_l1M0K/view?usp=drive_link" #remove this before pushing to GitHub 
@@ -828,11 +828,273 @@ lm_model5_cv$results  # Display the results of the cross-validation
 #cross fold validation and prediction on the test data show an R2 of 0.265, suggesting this model captures ~26% of the variance in the data set 
 
 
-
-#things to fix tomorrow, reduce the genres column to incorporate more into the others column, consider scaling the factors, removing extreme outliers and possibly using a more advanced model to capture the non-lineatiy 
-#run a logit by encoding a binary variable for tomatometer rating above 60% as the high rating and below as low rating 
-#based off the logit model we can run a CART model to see if we can improve the model
-
+### Step 2: Binary encoding into high and low to run logistic regression and CART models 
+movies_cleaned_removed$rating_category <- ifelse(movies_cleaned_removed$tomatometer_rating > 70, "high", "low")
+movies_cleaned_removed$rating_category <- factor(movies_cleaned_removed$rating_category, levels = c("low", "high"))
 
 
+#splitting the data set into training and testing sets
 
+#reshuffle the data set to ensure randomness in the training and testing sets
+
+movies_cleaned_removed <- movies_cleaned_removed[sample(nrow(movies_cleaned_removed)), ] # Shuffle the data set
+
+#re-split the data set into training and testing sets
+
+set.seed(123) # Ensure reproducibility
+training_indices <- createDataPartition(movies_cleaned_removed$rating_category, p = 0.8, list = FALSE)
+training_set <- movies_cleaned_removed[training_indices, ]
+testing_set <- movies_cleaned_removed[-training_indices, ]
+
+#running a logistic regression model
+
+logistic_model <- glm(rating_category ~ runtime + age_at_streaming + content_rating + actor_popularity + 
+                        genres_Comedy + genres_Horror + genres_Art.House...International + 
+                        genres_Documentary + genres_Drama + genres_Kids...Family + 
+                        genres_Musical...Performing.Arts + genres_Mystery...Suspense + 
+                        genres_Science.Fiction...Fantasy + genres_Special.Interest + 
+                        audience_count + season_Winter + season_Summer +  
+                        season_Fall + num_authors + num_directors + num_actors + release_month, 
+                      data = training_set, family = "binomial")
+
+summary(logistic_model) 
+
+
+#add the int reaction terms to the model 
+
+interaction_formula_logistic <- as.formula(
+  "rating_category ~ runtime + age_at_streaming + content_rating +
+   actor_popularity + audience_count + num_authors + num_directors +
+   num_actors + release_month +
+   content_rating:genres_Comedy + content_rating:genres_Horror +
+   content_rating:genres_Art.House...International +
+   content_rating:genres_Documentary + content_rating:genres_Drama +
+   content_rating:genres_Kids...Family + content_rating:genres_Musical...Performing.Arts +
+   content_rating:genres_Mystery...Suspense + content_rating:genres_Science.Fiction...Fantasy +
+   content_rating:genres_Special.Interest +
+   season_Spring:age_at_streaming + season_Summer:age_at_streaming +
+   season_Fall:age_at_streaming + season_Winter:age_at_streaming"
+)
+
+# Fit the updated model with interaction terms
+
+logistic_model2 <- glm(interaction_formula_logistic, data = training_set, family = "binomial")
+
+summary(logistic_model2) 
+
+#add the poloynomial terms to the model 
+
+poly_formula_logistic <- as.formula(
+  "rating_category ~ runtime + age_at_streaming + content_rating +
+   actor_popularity + audience_count + num_authors + num_directors +
+   num_actors + release_month +
+   content_rating:genres_Comedy + content_rating:genres_Horror +
+   content_rating:genres_Art.House...International +
+   content_rating:genres_Documentary + content_rating:genres_Drama +
+   content_rating:genres_Kids...Family + content_rating:genres_Musical...Performing.Arts +
+   content_rating:genres_Mystery...Suspense + content_rating:genres_Science.Fiction...Fantasy +
+   content_rating:genres_Special.Interest +
+   season_Spring:age_at_streaming + season_Summer:age_at_streaming +
+   season_Fall:age_at_streaming + season_Winter:age_at_streaming +
+   poly(runtime, 2, raw = TRUE) + poly(age_at_streaming, 2, raw = TRUE) +
+   poly(actor_popularity, 2, raw = TRUE) + poly(audience_count, 2, raw = TRUE) +
+   poly(num_authors, 2, raw = TRUE) + poly(num_directors, 2, raw = TRUE) +
+   poly(num_actors, 2, raw = TRUE) + poly(release_month, 2, raw = TRUE)"
+)
+
+
+# Fit the updated model with polynomial terms
+logistic_model3 <- glm(poly_formula_logistic, data = training_set, family = "binomial")
+summary(logistic_model3)
+
+#running stepwise regression to determine the best model
+logistic_model4 <- step(logistic_model3, direction = "both", trace = 1) #run the stepwise regression model  
+
+summary(logistic_model4) 
+
+pR2(logistic_model)
+pR2(logistic_model2)
+pR2(logistic_model3)
+pR2(logistic_model4)
+
+AIC(logistic_model4, logistic_model3, logistic_model2, logistic_model) #AIC shows the stepwise model is the best model 
+
+#logistic model remains consisten with OLS will continue using this model for predicitions 
+
+predictions_prob <- predict(logistic_model, newdata = testing_set, type = "response")
+predictions_class <- ifelse(predictions_prob > 0.5, "high", "low")
+
+# Confusion Matrix
+table(Predicted = predictions_class, Actual = testing_set$rating_category) 
+
+# Accuracy
+accuracy <- sum(predictions_class == testing_set$rating_category) / nrow(testing_set)
+accuracy 
+
+#model is generally accurate with a 71.3% accuracy rate 
+
+#recall and precision 
+
+# Confusion matrix values
+TP <- 637  # True Positives: "high" predicted as "high"
+FP <- 546  # False Positives: "low" predicted as "high"
+FN <- 254  # False Negatives: "high" predicted as "low"
+
+# Calculate Precision
+Precision <- TP / (TP + FP)  
+
+#precision score is 0.54, model has a tendency to predict high ratings
+
+# Calculate Recall
+Recall <- TP / (TP + FN) 
+
+#recall is 0.71, model is good at predicting high ratings
+
+# Calculate F1 Score
+F1_Score <- 2 * (Precision * Recall) / (Precision + Recall) 
+
+#F1 score is 0.62, suggesting the model is not perfect but generally better than random guessing 
+
+# Print the results
+cat("Precision for 'high':", Precision, "\n")
+cat("Recall for 'high':", Recall, "\n")
+cat("F1 Score for 'high':", F1_Score, "\n")
+
+
+
+#running a CART model 
+
+library(rpart)
+
+# Assuming movies_cleaned_removed is your dataset and it's already processed
+# Fitting a CART model to the training data
+cart_model <- rpart(rating_category ~ runtime + age_at_streaming + content_rating +
+                      actor_popularity + audience_count + num_authors + num_directors +
+                      num_actors + release_month + genres_Comedy + genres_Horror +
+                      genres_Art.House...International + genres_Documentary + genres_Drama +
+                      genres_Kids...Family + genres_Musical...Performing.Arts +
+                      genres_Mystery...Suspense + genres_Science.Fiction...Fantasy +
+                      genres_Special.Interest + season_Winter + season_Summer +
+                      season_Fall, 
+                    data = training_set, method = "class")
+
+print(cart_model)  # Display the CART model 
+
+rpart.plot(cart_model, main="CART Model for Movie Ratings", extra=102, under=TRUE, faclen=0)
+
+
+control <- trainControl(method="cv", number=10, savePredictions = TRUE, search = "grid")
+
+results <- data.frame(maxdepth = integer(), 
+                      Accuracy = numeric(), 
+                      F1_Score = numeric(), 
+                      Precision = numeric(),
+                      Recall=numeric())
+
+# Loop over desired maxdepth values
+for (maxdepth in 1:20) {
+  # Train the model with the current maxdepth setting using Cross Validation
+  fit <- train(rating_category ~ runtime + age_at_streaming + content_rating +
+                 actor_popularity + audience_count + num_authors + num_directors +
+                 num_actors + release_month + genres_Comedy + genres_Horror +
+                 genres_Art.House...International + genres_Documentary + genres_Drama +
+                 genres_Kids...Family + genres_Musical...Performing.Arts +
+                 genres_Mystery...Suspense + genres_Science.Fiction...Fantasy +
+                 genres_Special.Interest + season_Winter + season_Summer +
+                 season_Fall,  
+               data = training_set, 
+               method = "rpart",
+               trControl = control, 
+               tuneGrid = expand.grid(cp = 0.01), # cp is set to a single value as an example
+               control = rpart.control(maxdepth = maxdepth, cp = 0.01)) # Adjust cp as needed
+}
+
+  # Predict on the testing set to get the confusion matrix
+  predictions <- predict(fit, training_set, type = "raw")
+  cm <- confusionMatrix(predictions, training_set$rating_category)
+  
+  # Calculate F1-score on test set
+  precision <- as.numeric(cm$byClass['Pos Pred Value'])
+  recall <- as.numeric(cm$byClass['Sensitivity'])
+  f1_score <- 2 * ((precision * recall) / (precision + recall))
+  
+  # Collect and store the results
+  accuracy <- as.numeric(max(fit$results$Accuracy))
+  results <- rbind(results, 
+                   data.frame(maxdepth = maxdepth, 
+                              Accuracy = accuracy, 
+                              F1_Score = f1_score,
+                              Precision= precision,
+                              Recall = recall))
+
+
+
+# Plot F1_Score vs. Prediction Performance Metrics
+
+# Convert the data to a long format for plotting with ggplot2
+data_long <- reshape2::melt(results, 
+                            id.vars = "maxdepth", 
+                            variable.name = "Metric", 
+                            value.name = "Value")
+
+# Plotting
+ggplot(data_long, aes(x = maxdepth, y = Value, color = Metric)) +
+  geom_line() + geom_point() +
+  scale_color_manual(values = c("Accuracy" = "blue", "F1_Score" = "red", "Precision" = "green", "Recall" = "black" )) +
+  ggtitle("Model Performance by Max Depth") +
+  xlab("Max Depth") +
+  ylab("Score") +
+  theme_minimal() 
+
+best_maxdepth_f1 <- results$maxdepth[which.max(results$F1_Score)]
+
+best_fit_F1 <- rpart(rating_category ~ runtime + age_at_streaming + content_rating +
+                       actor_popularity + audience_count + num_authors + num_directors +
+                       num_actors + release_month + genres_Comedy + genres_Horror +
+                       genres_Art.House...International + genres_Documentary + genres_Drama +
+                       genres_Kids...Family + genres_Musical...Performing.Arts +
+                       genres_Mystery...Suspense + genres_Science.Fiction...Fantasy +
+                       genres_Special.Interest + season_Winter + season_Summer +
+                       season_Fall, 
+                     data = training_set, 
+                     method = "class", 
+                     control = rpart.control(maxdepth = best_maxdepth_f1, cp = 0.01))
+
+
+rpart.plot(best_fit_F1, main="CART Model for Movie Ratings", extra=102, under=TRUE, faclen=0) 
+
+#test on the test set 
+
+predictions <- predict(best_fit_F1, newdata = testing_set, type = "class") 
+
+# Confusion Matrix
+
+table(Predicted = predictions, Actual = testing_set$rating_category)
+
+# Accuracy
+
+accuracy <- sum(predictions == testing_set$rating_category) / nrow(testing_set)
+accuracy
+
+#recall and precision
+
+# Confusion matrix values
+TP <- 597  # True Positives: "high" predicted as "high"
+FP <- 266  # False Positives: "low" predicted as "high"
+FN <- 586  # False Negatives: "high" predicted as "low" 
+
+# Calculate Precision
+
+Precision <- TP / (TP + FP)
+Precision #0.5384
+# Calculate Recall
+
+Recall <- TP / (TP + FN)
+Recall #0.7149
+# Calculate F1 Score
+
+F1_Score <- 2 * (Precision * Recall) / (Precision + Recall)
+F1_Score #0.6142 
+
+
+#F1 score did not improve using best max depth so we will consider the model with the default max depth 
