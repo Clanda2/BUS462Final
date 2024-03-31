@@ -830,57 +830,9 @@ lm_model5_cv$results  # Display the results of the cross-validation
 
 
 #things to fix tomorrow, reduce the genres column to incorporate more into the others column, consider scaling the factors, removing extreme outliers and possibly using a more advanced model to capture the non-lineatiy 
-
-##### Hypothesis 2: The season in which a movie is released influences its tomatometer rating on Rotten Tomatoes. ##### 
-
-season_model <- lm(tomatometer_rating ~ season_Fall + season_Spring + season_Summer, data = training_set) #fit a linear regression model to the data 
-summary(season_model) #check the summary statistics
-#model shows that winter and fall are significant predictors of tomatomer rating, with summer being less 
-
-#signifigant, spring is not significant. This is suspect as the data set is balanced so we will consider interaction terms and additionl variables 
-
-#overall model is signifigant but has an extremely low R2 
-
-par(mforw = c(2, 2)) 
-plot(season_model) #plot the diagnostic plots for the model 
-
-#plot is highly unusual and suggests non-linearity and outliers 
-
-#check the VIF to ensure no multicollinearity
-vif(season_model) 
+#run a logit by encoding a binary variable for tomatometer rating above 60% as the high rating and below as low rating 
+#based off the logit model we can run a CART model to see if we can improve the model
 
 
-season_model2 <- lm(tomatometer_rating ~ season_Fall + season_Spring + season_Summer + release_year, data = training_set)
-summary(season_model2)
-
-#addition of release_year signifiantly improves the model, and changes significance of the seasons with season_summar no longer being significant. 
-#model shows a decreasing trend in overall ratings but this is likely due to the increase in data over time and non-linear relationship 
-#interaction between seasonlity and year is suspected so we will include an interaction term 
-#R2 = 0.06319 
-
-
-#check the plots 
-par(mfrow = c(2, 2))  # Set the layout to 2x2 plots 
-plot(season_model2)  # Plot the diagnostic plots for the model
-
-#plots suggest non-linearity and slight homoscedasticity  
-
-season_model3 <- lm(tomatometer_rating ~ season_Fall * release_year + season_Spring * release_year + season_Summer * release_year, data = training_set)
-summary(season_model3) 
-
-#new modles shows the rating for winter release is significantly higher than the other seasons, however the effect of this decreases slightly each year
-#all variables are now significant and the R2 has increased to 0.06406 showing a very slight improvement 
-
-plot(season_model3) #plot the diagnostic plots for the model
-#plot still shows non-linearity and slight homoscedasticity so we will consider a polynomial model 
-
-season_model4 <- lm(tomatometer_rating ~ poly(release_year, 2, raw = TRUE) + season_Fall * release_year + season_Spring * release_year + season_Summer * release_year, data = training_set)
-summary(season_model4) #R2 = 0.08323 
-plot(season_model4) #plot the diagnostic plots for the model 
-
-#the model improves here suggesting a non-linear relationship between release year and tomatometer rating 
-#all seasons and interaction effects are non-significant but the overall model is significant with an R2 of 0.0862 
-
-#plots still suggest non-linearity and homoescadity not sure how to fix this 
 
 
