@@ -576,11 +576,7 @@ anova(fit, linear_model)
 
 ####### HYPOTHESIS TESTING AND MODELS ######## 
 
-#Key Question: what factors influence the tomatometer rating of a movie on Rotten Tomatoes?  
-
-
-
-movies_cleaned <- read.csv("/Users/chase/Documents/movies_cleaned.csv" , header = TRUE)  
+#Key Question: what factors influence the tomatometer rating of a movie on Rotten Tomatoes?   
 
 #remove unneeded columns
 movies_cleaned <- movies_cleaned %>% select(-c(movie_title, actors, authors, directors, tomatometer_status, season_visualization))
@@ -589,113 +585,12 @@ movies_cleaned$content_rating <- factor(movies_cleaned$content_rating, levels = 
 #shuffling the data set to ensure randomness in the training and testing sets 
 movies_cleaned <- movies_cleaned[sample(nrow(movies_cleaned)), ] # Shuffle the data set
 
-
 #splitting the data set into training and testing sets
 set.seed(123) # Ensure reproducibility
 training_indices <- createDataPartition(movies_cleaned$tomatometer_rating, p = 0.8, list = FALSE)
 training_set <- movies_cleaned[training_indices, ]
 testing_set <- movies_cleaned[-training_indices, ] 
 
-#Model 1: Linear Regression Model
 
-# Get all the column names that start with "genres_"
-genre_vars <- grep("^genres_", names(training_set), value = TRUE)
-
-# Remove one genre to serve as the reference level, avoiding the dummy variable trap
-genre_vars <- setdiff(genre_vars, "genres_Other")
-
-genre_formula_part <- paste(grep("^genres_", names(training_set), value = TRUE), collapse = " + ")# Create a string with all genre variable formula parts
-formula_str <- paste("tomatometer_rating ~ content_rating + runtime + actor_popularity +",
-                     genre_formula_part, "+ season_Spring + season_Summer + season_Fall + release_year + release_month + audience_count_scaled")# Add other predictors to the formula string
-full_formula <- as.formula(formula_str) # Create a formula object from the string
-
-modelKS <- lm(full_formula, data = training_set) #R2 = 0.2248
-summary(modelKS) 
-
-formula_2 <- paste("tomatometer_rating ~ content_rating + runtime +",
-                     genre_formula_part, "+ season_Spring + season_Summer + season_Fall + release_month + poly(release_year, 2, raw = TRUE)") # Add other predictors to the formula string
-
-formula_2 <- as.formula(formula_2) # Create a formula object from the string
-model1 <- lm(formula_2, data = training_set) 
-summary(model1) #R2 =0.2291 
-
-model2 <- lm(tomatometer_rating ~ content_rating + runtime + actor_popularity + 
-               genres_Action...Adventure + genres_Comedy + genres_Documentary + 
-               genres_Drama + genres_Kids...Family + genres_Horror + 
-               genres_Romance + genres_Other + release_year + audience_count_scaled, data = training_set) 
-summary(model2) #R2 = 0.2119 
-
-
-#check the AIC 
-AIC(modelKS) 
-
-
-#Creating string for the predictors to use in the LASSO regression removing tomater_rating as it is the dependent variable
-predictors_str <- paste("content_rating + runtime + actor_popularity +",
-                        genre_formula_part, "+ season_Spring + season_Summer + season_Fall + release_year + release_month + audience_count_scaled")
-
-
-#next we will use LASSO regression instead of stepwise regression to handle the multicollinearity and balance the genres
-
-x <- model.matrix(as.formula(paste("~", predictors_str)), data = training_set)
-y <- training_set$tomatometer_rating
-
-cv_lasso <- cv.glmnet(x, y, alpha = 1, standardize = TRUE, nfolds = 10) #10 fold cross validation
-best_lambda <- cv_lasso$lambda.min #The lambda that gives the minimum mean cross-validated error
-final_lasso_model <- glmnet(x, y, alpha = 1, standardize = TRUE, lambda = best_lambda) #Fit the final LASSO model using the selected lambda
-coef(final_lasso_model) #Examine the coefficients
-
-#LASSO retained all the variables so we will use the full model for the analysis 
-
-#add the interaction effects between release year and season and genre and runtime and accomodate for non-linearity in release year 
-
-# Get all the column names that start with "genres_"
-season_vars <- grep("^season_", names(training_set), value = TRUE)
-
-# Remove one genre to serve as the reference level, avoiding the dummy variable trap
-sesaon_vars <- setdiff(season_vars, "season_Spring")
-
-
-# Create the interaction terms
-genre_runtime_interactions <- paste("runtime", genre_vars, sep=":", collapse=" + ")
-season_year_interactions <- paste(season_vars, "release_year", sep=":", collapse=" + ")
-
-# For non-linearity in 'release_year', add polynomial terms (quadratic example)
-non_linear_year <- "poly(release_year, 2, raw = TRUE)"
-
-# Update the predictors string to include interaction terms, non-linear year term, and other predictors
-predictors_str <- paste("content_rating",
-                        "runtime",
-                        "actor_popularity",
-                        genre_formula_part,
-                        season_vars,
-                        "release_month",
-                        "audience_count_scaled",
-                        genre_runtime_interactions,
-                        season_year_interactions,
-                        non_linear_year,
-                        sep=" + ")
-
-# Construct the full formula including interaction and polynomial terms
-full_formula_str <- paste("tomatometer_rating ~", predictors_str)
-full_formula <- as.formula(full_formula_str)
-
-# Create the model matrix with interaction and polynomial terms
-x <- model.matrix(full_formula, data = training_set)
-y <- training_set$tomatometer_rating
-
-# Run the LASSO model with cross-validation to find the optimal lambda
-cv_lasso <- cv.glmnet(x, y, alpha = 1, standardize = TRUE, nfolds = 10)
-best_lambda <- cv_lasso$lambda.min
-
-# Fit the final LASSO model using the selected lambda
-final_lasso_model <- glmnet(x, y, alpha = 1, standardize = TRUE, lambda = best_lambda)
-
-# Check the coefficients to see the effect of the interactions and non-linear terms
-print(coef(final_lasso_model))
-
-
-
- ## all of these are poor model fits need to ask CK about this
 
 
