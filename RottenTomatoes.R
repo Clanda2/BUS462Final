@@ -1,6 +1,5 @@
 
-# BUS 462 -- Final Project 
-
+# BUS 462 -- Final Project  
 ######################################################### 
 
 cat("\014")  # Clear Console
@@ -8,17 +7,13 @@ rm(list = ls(all.names = TRUE))# clear all data objects
 gc() # clear memory
 set.seed(42) 
 
-#installing any missing packages
+
+#installing packages
 
 install.packages("googledrive")
 install.packages("corrplot") 
 install.packages("fastDummies")
-install.packages("httr")
-install.packages("timeDate") 
-install.packages("car")
 install.packages("glmnet") 
-install.packages("lmtest") 
-install.packages("sandwich")
 install.packages("rpart") 
 install.packages("rpart.plot")
 install.packages("pscl")
@@ -34,13 +29,13 @@ library(corrplot)
 library(scales) 
 library(stargazer)
 library(fastDummies)
-library(timeDate)
 library(car)
 library(glmnet)
 library(caret)
 library(rpart)
 library(rpart.plot)
 library(pscl)
+library(psych)
 
 drive_auth() #connecting to Google Drive API for data download
 file_id <- #removed for github
@@ -90,7 +85,7 @@ movies_cleaned <- movies_cleaned %>% select(-tomatometer_status)
 movies_cleaned <- movies_cleaned %>% select (-tomatometer_count)
 names(movies_cleaned)
 
-
+#convert the data types to the necesary types for analysis 
 movies_cleaned$runtime <- as.numeric(movies_cleaned$runtime)
 movies_cleaned$audience_rating <- as.numeric(movies_cleaned$audience_rating)
 movies_cleaned$audience_count <- as.numeric(movies_cleaned$audience_count)
@@ -298,7 +293,7 @@ genre_balance_df <- data.frame(Genre = genre_occurrences_df$Genre, Balance = gen
 genre_balance_df <- genre_balance_df[order(-genre_balance_df$Balance),] #sort by balance
 print(genre_balance_df) 
 
-#data is sstill skewed but balance is still skewed, may consider log transformation or LASSO model 
+#data is still skewed but balance is still skewed, may consider log transformation or LASSO model 
 
 
 #bind the encoded genres back to the cleaned data set and drop the original genres column 
@@ -341,26 +336,13 @@ ggplot(movies_cleaned, aes(x = season)) +
 #approximately equal distribution of movies across the seasons so we can proceed with the analysis 
 
 
-#one hot encode the season column 
+#one hot encode the season column and remove the original column 
 movies_cleaned <- fastDummies::dummy_cols(movies_cleaned, select_columns = "season", remove_selected_columns = TRUE)
 
 
-#reconstructing seasons to examine time series analysis 
-# Example of reconstructing the 'season' variable from one-hot encoded columns
-movies_cleaned$season_visualization <- with(movies_cleaned,
-                                            ifelse(season_Spring == 1, "Spring",
-                                                   ifelse(season_Summer == 1, "Summer",
-                                                          ifelse(season_Fall == 1, "Fall", "Winter")
-                                                   )
-                                            )
-)
-
-movies_cleaned$season_visualization <- factor(movies_cleaned$season_visualization, levels = c("Winter", "Spring", "Summer", "Fall"))
-season_visualization <- as.factor(movies_cleaned$season_visualization) #convert to factor for visualization
-
-#Check the data was properly encoded  
-
-#additional feature engineering to add the required columns for actor popularity scores 
+#adding an aditional column for actor popularity
+#this formula loops through the actors column and counts the number of times each actor 
+#appears in the data set and then assigns that count to the actor_popularity column for each movie 
 
 #Create actor_appearances table
 actor_appearances <- table(unlist(strsplit(as.character(movies_cleaned$actors), ",\\s*")))
@@ -425,7 +407,6 @@ ggplot(movies_cleaned, aes(x = actor_popularity)) +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5))  # Center the plot title
 
-#highly skewed data, may consider a log transformation 
 
 movies_cleaned$actor_popularity <- as.numeric(movies_cleaned$actor_popularity) #convert to numeric for regression analysis
 
@@ -433,7 +414,9 @@ movies_cleaned$actor_popularity <- as.numeric(movies_cleaned$actor_popularity) #
 #save the cleaned data set to a csv file
 write.csv(movies_cleaned, "movies_cleaned_3.csv", row.names = FALSE)
 
-names(movies_cleaned)
+names(movies_cleaned) 
+
+
 ####### Question 3 - EXPLORATORY ANALYSIS ######## 
 
 #create a correlation matrix to check for multicollinearity and correlation between the numeric columns
@@ -469,37 +452,46 @@ movies_cleaned <- movies_cleaned %>% select(-num_actors) #drop the num_actors co
 stargazer(movies_cleaned %>% select(-starts_with("season"), -starts_with("genres")), type = "text") #exclude the dummy variables
 
 
-#plot the distribution of audience count had to use a log transformation to see the distribution 
-
+#plot the distribution of audience count
 ggplot(movies_cleaned, aes(x = audience_count)) + 
-  geom_histogram(fill = "tomato", color = "navy", bins = 50) +  # Increased number of bins for more granularity
+  geom_histogram(fill = "tomato", color = "navy", bins = 50) +  
   labs(title = "Distribution of Audience Count",
        x = "Audience Count", 
        y = "Count") +
   theme_minimal() +
-  theme(plot.title = element_text(hjust = 0.5)) +  # Center the plot title
-  scale_y_continuous(labels = scales::comma)  # Ensure y-axis labels are not in scientific notation
-
-#applying the log normalized the distribution 
-
+  theme(plot.title = element_text(hjust = 0.5)) + #centers the title  
+  scale_y_continuous(labels = scales::comma)  #removes scientific notation 
 
 
 #check the distribution of the years in the data set 
-
 ggplot(movies_cleaned, aes(x = release_year)) + 
   geom_histogram(fill = "tomato", color = "navy", bins = 30) +
   labs(title = "Distribution of Release Years",
        x = "Release Year", 
        y = "Count") +
   theme_minimal() +
-  theme(plot.title = element_text(hjust = 0.5))  # Center the plot title 
+  theme(plot.title = element_text(hjust = 0.5))  
 
-#data is skewed but this is expected, will consider this in the analysis 
-
-#maybe we should consider dropping movies released before 2000 to see if there is a difference in the ratings
-
+#data is skewed but this is expected, will consider this in the analysis  
 
 #examining effect of year on seasonality of ratings 
+
+
+#reconstructing seasons to examine time series analysis 
+# Example of reconstructing the 'season' variable from one-hot encoded columns
+movies_cleaned$season_visualization <- with(movies_cleaned,
+                                            ifelse(season_Spring == 1, "Spring",
+                                                   ifelse(season_Summer == 1, "Summer",
+                                                          ifelse(season_Fall == 1, "Fall", "Winter")
+                                                   )
+                                            )
+)
+
+movies_cleaned$season_visualization <- factor(movies_cleaned$season_visualization, levels = c("Winter", "Spring", "Summer", "Fall"))
+season_visualization <- as.factor(movies_cleaned$season_visualization) #convert to factor for visualization
+
+
+
 
 #data set to large for meaningful visualization so will subset to a smaller sample 
 sample_size <- floor(0.1 * nrow(movies_cleaned))
