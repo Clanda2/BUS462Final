@@ -8,7 +8,7 @@ A project that attempts to answer the question: “What are the key factors that
 4. Critics ratings will generally be in line with audience ratings, but will likely be lower due to professional experience
 
 **The Code Base is Divided Into the Following Sections** 
-1. Data cleaning and preperation ([Dataset]([url])(https://www.kaggle.com/datasets/stefanoleone992/rotten-tomatoes-movies-and-critic-reviews-dataset?select=rotten_tomatoes_movies.csv)
+1. Data cleaning and preperation ([Dataset]([url](https://www.kaggle.com/datasets/stefanoleone992/rotten-tomatoes-movies-and-critic-reviews-dataset?select=rotten_tomatoes_movies.csv))
 2. Establish the variables the have the highest impact on critics rating measured by AIC via OLS regression
 3. Classify high critics rating as those that fall above the median and measure those same variables in a LOGIT regression model
 4. Utilize stepwise regression to attempt to develop a model with higher explanatory power
