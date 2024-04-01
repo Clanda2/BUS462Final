@@ -947,5 +947,173 @@ Recall #0.7773
 F1_Score <- 2 * (Precision * Recall) / (Precision + Recall)
 F1_Score #0.7801
 
+#out of curiosity we will test the model using a 70/30 split 
 
- 
+#splitting the data set into training and testing sets 
+
+set.seed(123) # Ensure reproducibility 
+training_indices <- createDataPartition(movies_cleaned$rating_category, p = 0.7, list = FALSE)
+training_set2 <- movies_cleaned[training_indices, ] 
+testing_set2 <- movies_cleaned[-training_indices, ]
+
+#check for missing values in the data set
+
+sum(is.na(training_set2)) #no missing values in the training set
+sum(is.na(testing_set2)) #no missing values in the testing set
+
+#remove the missing value from the testing set 
+testing_set2 <- testing_set2[complete.cases(testing_set2), ] #remove the missing value from the testing set
+
+
+
+
+# Set up cross-validation controls
+control <- trainControl(method="cv", number=3, savePredictions = TRUE, search = "grid")
+
+
+# Initialize an empty data frame to store results
+results <- data.frame(maxdepth = integer(), 
+                      Accuracy = numeric(), 
+                      F1_Score = numeric(), 
+                      Precision = numeric(),
+                      Recall=numeric())
+
+# Loop over desired maxdepth values
+for (maxdepth in 1:7) {
+  # Train the model with the current maxdepth setting using Cross Validation
+  fit <- train(rating_category ~ . - release_year - tomatometer_rating - tomatometer_status,
+               data = training_set2, 
+               method = "rpart",
+               trControl = control, 
+               tuneGrid = expand.grid(cp = 0.01), # cp is set to a single value as an example
+               control = rpart.control(maxdepth = maxdepth, cp = 0.01)) # Adjust cp as needed
+  
+  # Predict on the testing set to get the confusion matrix
+  predictions <- predict(fit, training_set2, type = "raw")
+  cm <- confusionMatrix(predictions, training_set2$rating_category)
+  
+  # Calculate F1-score on test set
+  precision <- as.numeric(cm$byClass['Pos Pred Value'])
+  recall <- as.numeric(cm$byClass['Sensitivity'])
+  f1_score <- 2 * ((precision * recall) / (precision + recall))
+  
+  # Collect and store the results
+  accuracy <- as.numeric(max(fit$results$Accuracy))
+  results <- rbind(results, 
+                   data.frame(maxdepth = maxdepth, 
+                              Accuracy = accuracy, 
+                              F1_Score = f1_score,
+                              Precision= precision,
+                              Recall = recall))
+}
+
+# Convert the data to a long format for plotting with ggplot2
+data_long <- reshape2::melt(results, 
+                            id.vars = "maxdepth", 
+                            variable.name = "Metric", 
+                            value.name = "Value")
+
+# Plotting
+ggplot(data_long, aes(x = maxdepth, y = Value, color = Metric)) +
+  geom_line() + geom_point() +
+  scale_color_manual(values = c("Accuracy" = "blue", "F1_Score" = "red", "Precision" = "green", "Recall" = "black" )) +
+  ggtitle("Model Performance by Max Depth") +
+  xlab("Max Depth") +
+  ylab("Score") +
+  theme_minimal() 
+
+best_maxdepth_f1 <- results$maxdepth[which.max(results$F1_Score)] 
+best_maxdepth_f1 #print the best max depth for the model
+
+# representing the best max depth for the model based on your prior analysis
+
+best_fit_F1 <- rpart(rating_category ~ . - release_year - tomatometer_rating - tomatometer_status,
+                     data = training_set2, 
+                     method = "class", 
+                     control = rpart.control(maxdepth = best_maxdepth_f1, cp = 0.01))
+
+
+
+rpart.plot(best_fit_F1, main="CART Model for Movie Ratings", extra=102, under=TRUE, faclen=0) 
+
+#test on the test set 
+
+predictions <- predict(best_fit_F1, newdata = testing_set2, type = "class") 
+
+# Confusion Matrix
+
+table(Predicted = predictions, Actual = testing_set2$rating_category)
+
+# Accuracy
+
+accuracy <- sum(predictions == testing_set$rating_category) / nrow(testing_set)
+accuracy #0.7424
+
+
+
+# Confusion matrix values
+TP <- 1703  # True Positives: "high" predicted as "high"
+FP <- 515  # False Positives: "low" predicted as "high"
+FN <- 388  # False Negatives: "high" predicted as "low" 
+
+# Calculate Precision
+
+Precision <- TP / (TP + FP)
+Precision #0.7678
+# Calculate Recall #Preforms worse than the 80/20 split 
+
+Recall <- TP / (TP + FN)
+Recall #0.81
+# Calculate F1 Score # signifigant improvement over the 80/20 split
+
+F1_Score <- 2 * (Precision * Recall) / (Precision + Recall)
+F1_Score #0.7904 #slight improvement over the 80/20 split 
+
+
+# Metrics for the first model (80/20 split)
+metrics_80_20 <- data.frame(
+  Split = "80/20",
+  F1_Score = 0.7801,
+  Precision = 0.7872,
+  Recall = 0.7773
+)
+
+# Metrics for the second model (70/30 split)
+metrics_70_30 <- data.frame(
+  Split = "70/30",
+  F1_Score = 0.7904,
+  Precision = 0.7678,
+  Recall = 0.81
+)
+
+# Combine the data
+metrics_combined <- rbind(metrics_80_20, metrics_70_30)
+
+# Melt the data for plotting
+library(reshape2)
+metrics_melted <- melt(metrics_combined, id.vars = "Split")
+
+# Plotting
+# Enhanced plotting
+ggplot(metrics_melted, aes(x = Split, y = value, fill = variable)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.8), width = 0.7) +
+  geom_text(aes(label = sprintf("%.2f", value)), vjust = -0.5, position = position_dodge(width = 0.8), size = 3.5) +
+  scale_fill_manual(values = c("F1_Score" = "#EF476F", "Precision" = "#06D6A0", "Recall" = "#118AB2"),
+                    name = "Metric", labels = c("F1 Score", "Precision", "Recall")) +
+  labs(title = "Model Performance Comparison Across Training/Testing Splits",
+       subtitle = "Evaluating F1 Score, Precision, and Recall",
+       x = "Training/Testing Split",
+       y = "Score") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
+    plot.subtitle = element_text(size = 12, hjust = 0.5),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12),
+    legend.position = "bottom",
+    legend.title = element_text(face = "bold", size = 10),
+    legend.text = element_text(size = 9)
+  ) +
+  guides(fill = guide_legend(title.position = "top", title.hjust = 0.5))
+
+
