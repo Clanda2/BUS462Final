@@ -43,7 +43,7 @@ library(rpart.plot)
 library(pscl)
 
 drive_auth() #connecting to Google Drive API for data download
-file_id <- "https://drive.google.com/file/d/1LtLVMOV2yBkhXo-DrvXS3E5O_U_l1M0K/view?usp=drive_link" #remove this before pushing to GitHub 
+file_id <- #removed for github
 downloaded_file <- drive_download(as_id(file_id),overwrite = TRUE) 
 movies <- read.csv(downloaded_file$name, header = TRUE)
 rm(downloaded_file, file_id)                        
