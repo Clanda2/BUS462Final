@@ -22,6 +22,7 @@ install.packages("sandwich")
 install.packages("rpart") 
 install.packages("rpart.plot")
 install.packages("pscl")
+
 #loading the data and packages
 
 library(dplyr)
@@ -81,16 +82,23 @@ movies_cleaned <- movies_cleaned %>% select(-audience_status) # Drop the audienc
 movies_cleaned <- movies_cleaned %>% 
   filter(content_rating != "NC17") #Remove NC17 ratings as these are related to TV shows and not movies 
 movies_cleaned <- movies_cleaned %>% select(-movie_info) # Drop the movie_info column
+movies_cleaned <- movies_cleaned %>% select(-production_company)
+movies_cleaned <- movies_cleaned %>% select(-tomatometer_top_critics_count) # Drop the tomatometer_top_critics_count column
+movies_cleaned <- movies_cleaned %>% select(-tomatometer_rotten_critics_count) # Drop the tomatometer_rotten_critics_count column 
+movies_cleaned <- movies_cleaned %>% select(-tomatometer_fresh_critics_count)
+movies_cleaned <- movies_cleaned %>% select(-tomatometer_status)
+movies_cleaned <- movies_cleaned %>% select (-tomatometer_count)
+names(movies_cleaned)
 
-#converting the data types of the columns 
+
 movies_cleaned$runtime <- as.numeric(movies_cleaned$runtime)
 movies_cleaned$audience_rating <- as.numeric(movies_cleaned$audience_rating)
 movies_cleaned$audience_count <- as.numeric(movies_cleaned$audience_count)
 movies_cleaned$original_release_date <- as.Date(movies_cleaned$original_release_date, format = "%Y-%m-%d")
 movies_cleaned$streaming_release_date <- as.Date(movies_cleaned$streaming_release_date, format = "%Y-%m-%d")
 movies_cleaned$genres <- as.factor(movies_cleaned$genres)
-movies_cleaned$tomatometer_status <- as.actor(movies_cleaned$tomatometer_status, levels = c("Rotten", "Fresh", "Certified-Fresh")) #convert tomatometer_status to factor with levels for regression analysis
 movies_cleaned$tomatometer_rating <- as.numeric(movies_cleaned$tomatometer_rating) #convert to numeric for regression analysis
+movies_cleaned$content_rating <- factor(movies_cleaned$content_rating, levels = c("PG", "NR", "PG-13", "G", "R")) 
 
 #check zeros in the numeric columns 
 zero_values <- sapply(movies_cleaned, function(x) sum(x == 0))
@@ -151,7 +159,7 @@ ggplot(movies_cleaned, aes(x = age_at_streaming)) +
 ### this has a number of zeros indicating the movies were released direct to streaming, might considering subsetting into movies 
 ### released in theaters first and those that were not 
 
-#data is right skewed, but this is expected so will not transform the data  (might be needed confirm) 
+#data is right skewed, might consider a log transformation for the regression analysis 
 
 #add a column for the number of actors in the cast 
 movies_cleaned$num_actors <- sapply(movies_cleaned$actors, function(x) length(unlist(strsplit(x, ",\\s*")))) 
@@ -168,7 +176,9 @@ ggplot(movies_cleaned, aes(x = "", y = num_actors)) +
         axis.ticks.x = element_blank(),  # Remove x axis ticks
         axis.text.x = element_blank())  # Remove x axis text
 
-#one extreme outlier identified so will need to remove, run the regession twice to see the impact or do a log transformation???? 
+#one extreme outlier identified, this is a valid entry but wiill skew the data so will remove it 
+
+movies_cleaned <- movies_cleaned %>% filter(num_actors < 300) #remove the extreme outlier
 
 
 #check for distribution of number of actors
@@ -181,7 +191,7 @@ ggplot(movies_cleaned, aes(x = num_actors)) +
   theme(plot.title = element_text(hjust = 0.5))  # Center the plot title
 
 
-##extremely right skewed might consider a log transformation???? 
+#data is extremely right skewed, may consider a log transformation for the regression analysis 
 
 #add a column for the number of authors 
 
@@ -200,6 +210,10 @@ ggplot(movies_cleaned, aes(x = "", y = num_authors)) +
         axis.ticks.x = element_blank(),  # Remove x axis ticks
         axis.text.x = element_blank())  # Remove x axis text
 
+#two extreme outliers identified, so we will remove them 
+
+movies_cleaned <- movies_cleaned %>% filter(num_authors < 21) #remove the extreme outliers
+
 #plot the distribution of the number of authors 
 ggplot(movies_cleaned, aes(x = num_authors)) + 
   geom_histogram(fill = "tomato", color = "navy", bins = 30) +
@@ -209,7 +223,7 @@ ggplot(movies_cleaned, aes(x = num_authors)) +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5))  # Center the plot title
 
-## same here has outliers might consider a transformation or running the regression twice if including  
+#same problem with skewness, may consider a log transformation for the regression analysis 
 
 #add a column for the number of directors 
 
@@ -228,7 +242,6 @@ ggplot(movies_cleaned, aes(x = "", y = num_directors)) +
         axis.ticks.x = element_blank(),  # Remove x axis ticks
         axis.text.x = element_blank())  # Remove x axis text
 
-#same with this one, number of outtliers so might consider a transformation or running the regression twice if including 
 
 #create a long format data set to seperate each comma seperated genre into its own column to check balance 
 
@@ -264,12 +277,12 @@ genre_balance_df <- genre_balance_df[order(-genre_balance_df$Balance),] #sort by
 print(genre_balance_df) 
 
 
-#genres are unbalanced so we will aggregate the genres into broader categories to balance them 
+#genres are extremely unbalanced, so will aggregate the less common genres into an "Other" category 
 
 movies_genres_encoded$genres_Other <- 0 #create the other column with initial value of 0
 genres_to_aggregate <- c("genres_Animation", "genres_Western", "genres_Television", 
                          "genres_Sports & Fitness", "genres_Cult Movies", "genres_Gay & Lesbian",
-                         "genres_Faith & Spirituality", "genres_Anime & Manga") #aggregate these genres
+                         "genres_Faith & Spirituality", "genres_Anime & Manga", "genres_Special Interest", "genres_Musical & Performing Arts") #aggregate these genres
 movies_genres_encoded$genres_Other <- rowSums(movies_genres_encoded[, genres_to_aggregate]) #sum the specified genres
 movies_genres_encoded <- movies_genres_encoded[ , !(names(movies_genres_encoded) %in% genres_to_aggregate)] #drop the original columns for aggregated genres
 movies_genres_encoded$genres_Other <- ifelse(movies_genres_encoded$genres_Other > 0, 1, 0) #convert to binary
@@ -285,7 +298,7 @@ genre_balance_df <- data.frame(Genre = genre_occurrences_df$Genre, Balance = gen
 genre_balance_df <- genre_balance_df[order(-genre_balance_df$Balance),] #sort by balance
 print(genre_balance_df) 
 
-#balance is better but still right skewed, we will consider this in the analysis and use LASSO regression to handle the imbalance
+#data is sstill skewed but balance is still skewed, may consider log transformation or LASSO model 
 
 
 #bind the encoded genres back to the cleaned data set and drop the original genres column 
@@ -343,7 +356,6 @@ movies_cleaned$season_visualization <- with(movies_cleaned,
 )
 
 movies_cleaned$season_visualization <- factor(movies_cleaned$season_visualization, levels = c("Winter", "Spring", "Summer", "Fall"))
-
 season_visualization <- as.factor(movies_cleaned$season_visualization) #convert to factor for visualization
 
 #Check the data was properly encoded  
@@ -358,7 +370,8 @@ batch_size <- 100  # Set the batch size
 num_batches <- ceiling(nrow(movies_cleaned) / batch_size)
 actor_popularity_scores <- integer(nrow(movies_cleaned))  # Initialize the vector to store scores
 
-##WARNING - This function takes a very long time to run 
+##WARNING - This function takes about 20 minutes to run on a standard computer 
+
 # Initialize variables for tracking progress
 current_row <- 1  # Start from the first row
 total_rows <- nrow(movies_cleaned)
@@ -412,13 +425,15 @@ ggplot(movies_cleaned, aes(x = actor_popularity)) +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5))  # Center the plot title
 
+#highly skewed data, may consider a log transformation 
+
 movies_cleaned$actor_popularity <- as.numeric(movies_cleaned$actor_popularity) #convert to numeric for regression analysis
 
 
 #save the cleaned data set to a csv file
-write.csv(movies_cleaned, "movies_cleaned_2.csv", row.names = FALSE)
+write.csv(movies_cleaned, "movies_cleaned_3.csv", row.names = FALSE)
 
-
+names(movies_cleaned)
 ####### Question 3 - EXPLORATORY ANALYSIS ######## 
 
 #create a correlation matrix to check for multicollinearity and correlation between the numeric columns
@@ -426,7 +441,7 @@ write.csv(movies_cleaned, "movies_cleaned_2.csv", row.names = FALSE)
 numeric_columns <- movies_cleaned %>%
   select(runtime, audience_rating, audience_count, tomatometer_rating, 
          age_at_streaming, num_actors, num_authors, num_directors, 
-         tomatometer_fresh_critics_count, actor_popularity) # Select only the numeric columns and exclude the dummy variables
+        actor_popularity) # Select only the numeric columns and exclude the dummy variables
 
 # Calculate the correlation matrix
 cor_matrix <- cor(numeric_columns, use = "complete.obs")  
@@ -444,11 +459,15 @@ corrplot(cor_matrix, method = "color", type = "upper",
          title = "Correlation Matrix", 
          mar = c(0,0,1,0)) 
 
-#matrix shows no multicollinearity so we can proceed with the analysis but will check VIF after model building
+#matrix shows some potential multicollinearity between number of actors and actor_popularity so we wil remove num actors from the analysis 
+
+movies_cleaned <- movies_cleaned %>% select(-num_actors) #drop the num_actors column
 
 
 #check stargazer for the summary statistics excluding the dummy variables 
-stargazer(movies_cleaned %>% select(-starts_with("genres")), type = "text")
+
+stargazer(movies_cleaned %>% select(-starts_with("season"), -starts_with("genres")), type = "text") #exclude the dummy variables
+
 
 #plot the distribution of audience count had to use a log transformation to see the distribution 
 
@@ -459,11 +478,9 @@ ggplot(movies_cleaned, aes(x = audience_count)) +
        y = "Count") +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5)) +  # Center the plot title
-  scale_x_log10(labels = scales::comma) +  # Apply a log10 transformation
   scale_y_continuous(labels = scales::comma)  # Ensure y-axis labels are not in scientific notation
 
-#data is heavily right skewed so we will apply a log transformation to the audience count column. 
-#note this changes the interpretation of the data to a percentage change in audience count 
+#applying the log normalized the distribution 
 
 
 
@@ -544,253 +561,131 @@ years_seasonality <- ggplot(movies_sampled, aes(x = release_year, y = tomatomete
 
 print(years_seasonality) #years_seasonlity stored as a data object for later use 
 
-#while not entirely clear there seems to be between an inconsistent relationship betweeen release year and tomatometer rating by season, we will need to run a regression to confirm and include the interaction term 
+#while not entirely clear there seems to be between an inconsistent relationship betweeen release year and tomatometer rating by season, 
+#we will need to run a regression to confirm and include the interaction term 
 
 
-# Aggregating average ratings by year
-annual_avg_rating <- movies_cleaned %>%
-  group_by(release_year) %>%
-  summarise(average_rating = mean(tomatometer_rating, na.rm = TRUE))
 
-#fitting a linear regression model to the data
-linear_model <- lm(average_rating ~ release_year, data = annual_avg_rating) 
-
-#adding the fitted trend line to the plot
-ggplot(annual_avg_rating, aes(x = release_year, y = average_rating)) +
-  geom_point() +
-  geom_line(aes(y = predict(linear_model)), color = "red") +
-  theme_minimal() +
-  labs(title = "Trend of Average Tomatometer Rating Over Years",
-       x = "Release Year", y = "Average Tomatometer Rating")
-
-# Fitting a polynomial regression model (2nd degree as an example)
-fit <- lm(average_rating ~ poly(release_year, 2, raw=TRUE), data = annual_avg_rating)
-
-# Adding the fitted trend line to the plot
-ggplot(annual_avg_rating, aes(x = release_year, y = average_rating)) +
-  geom_point() +
-  geom_line(aes(y = predict(fit)), color = "red") +
-  theme_minimal() +
-  labs(title = "Trend of Average Tomatometer Rating Over Years",
-       x = "Release Year", y = "Average Tomatometer Rating")
-
-#ANOVA to check if the polynomial model is better than the linear model 
-
-anova(fit, linear_model) 
-
-#anova shows evidence of non-linearity so we may consider the polynomial model for the analysis 
 
 ####### HYPOTHESIS TESTING AND MODELS ########  
 
-#Key Question: what factors influence the tomatometer rating of a movie on Rotten Tomatoes?   
-movies_cleaned <- read.csv("/Users/chase/Documents/movies_cleaned_2.csv" , header = TRUE) 
-movies_cleaned$content_rating <- factor(movies_cleaned$content_rating, levels = c("PG", "NR", "PG-13", "G", "R")) 
+movies_cleaned <- read.csv("/Users/chase/Documents/movies_cleaned_3.csv" , header = TRUE) #read in the cleaned data set
 
+#Key Question: what factors influence the tomatometer rating of a movie on Rotten Tomatoes?   
+
+#drop the movie_title, directors, authors, actors, original_release_date, streaming_release_date columns as they are not needed for the analysis
+
+movies_cleaned <- movies_cleaned %>% select(-movie_title, -directors, -authors, -actors, -original_release_date, -streaming_release_date)
+movies_cleaned <- movies_cleaned %>% select(-season_visualization) #drop the season_visualization column as it is not needed for the analysis
+names(movies_cleaned)
 #shuffling the data set to ensure randomness in the training and testing sets 
-movies_cleaned <- movies_cleaned[sample(nrow(movies_cleaned)), ] # Shuffle the data set
+movies_cleaned <- movies_cleaned[sample(nrow(movies_cleaned)), ] # Shuffle the data set 
+
+#movies_cleaned contains dummy variables so we will create a new df with one droped to avoid multicollinearity 
+names(movies_cleaned)
+OLS_set <- movies_cleaned %>% select(-season_Spring, -genres_Romance) #drop the season_Spring and genres_Action...Adventure columns to avoid multicollinearity
 
 #splitting the data set into training and testing sets
 set.seed(123) # Ensure reproducibility
-training_indices <- createDataPartition(movies_cleaned$tomatometer_rating, p = 0.8, list = FALSE)
-training_set <- movies_cleaned[training_indices, ]
-testing_set <- movies_cleaned[-training_indices, ] 
+training_indices <- createDataPartition(OLS_set$tomatometer_rating, p = 0.8, list = FALSE)
+training_set <- OLS_set[training_indices, ]
+testing_set <- OLS_set[-training_indices, ]  
+
+#check for missing values in the data set 
+
+sum(is.na(training_set)) #no missing values in the training set 
+#remove the missing value from the training set 
+training_set <- training_set[complete.cases(training_set), ] #remove the missing value from the training set
+sum(is.na(testing_set)) #no missing values in the testing set
 
 
-#running the first OLS regression model including all relevant variables, with no interactions or transformations at this point 
+#run the first kitchen sink model to see the effect of all variables on the tomatometer rating 
 
-
-lm_modelKS <- lm(tomatometer_rating ~ runtime + age_at_streaming + content_rating + actor_popularity + 
-                  genres_Comedy + genres_Horror + genres_Art.House...International + 
-                  genres_Documentary + genres_Drama + genres_Kids...Family + 
-                  genres_Musical...Performing.Arts + genres_Mystery...Suspense + 
-                  genres_Science.Fiction...Fantasy + genres_Special.Interest + 
-                  audience_count + release_year + season_Winter + season_Summer +  
-                  season_Fall + num_authors + num_directors + num_actors + release_month, data = training_set) #fit a linear regression model to the data
-
-summary(lm_modelKS) #check the summary statistics) #R2 = 0.2459, P-value = 2.2e-16 (signifigant)
+lm_modelKS <- lm(tomatometer_rating ~ ., data = training_set)
+summary(lm_modelKS) #R2 = 0.8099
 
 #check for multicollinearity 
 vif(lm_modelKS) #check the VIF to ensure no multicollinearity
 
 #ask expected, age_at_streaming and release year are highly correlated so we will remove release_year from the model 
-lm_model1 <- lm(tomatometer_rating ~ runtime + age_at_streaming + content_rating + actor_popularity + 
-                   genres_Comedy + genres_Horror + genres_Art.House...International + 
-                   genres_Documentary + genres_Drama + genres_Kids...Family + 
-                   genres_Musical...Performing.Arts + genres_Mystery...Suspense + 
-                   genres_Science.Fiction...Fantasy + genres_Special.Interest + 
-                   audience_count + season_Winter + season_Summer +  
-                   season_Fall + num_authors + num_directors + num_actors + release_month, data = training_set) 
-
+lm_model1 <- lm(tomatometer_rating ~ . - release_year, data = training_set)
 summary(lm_model1) #check the summary statistics) #R2 = 0.243, P-value = 2.2e-16 (signifigant)
+#set the plot to 2x2 
+par(mfrow = c(2, 2))
+
 plot(lm_model1) #check the residuals
 
-#plot shows a number of issues including non-linearity, outliers and heteroscedasticity so we will address these issues in step 
+#plot shows some high leverage points and issues with non-linearity, we will add interaction terms to attempt to account for non-linearity 
 
-#step 1 - cook's distance shows one very extreme outlier so we will identify what this is 
-cooks_distance <- cooks.distance(lm_model1)  # Calculate Cook's distance 
-outlier_index <- which(cooks_distance > 20 / nrow(training_set))  # Identify extreme outliers with Cook's distance greater than 20/n
-outlier_index #print the index of the outlier
-
-
-#inspect why this movie is an outlier 
-outlier_movie_data <- training_set[outlier_index, ]  # Extract the outlier movie data
-outlier_movie_data #print the outlier movie data 
-
-#these movies are outliers because they have a very high number of authors, actors and directors we will remove them in a new data set and 
-#re-run the model to see if it improves
-
-
-#remove the outlier movie from the data set
-
-movies_cleaned_removed <- movies_cleaned[-outlier_index, ]  # Remove the outlier movie from the cleaned data and resplit the data 
-rm(training_set, testing_set) 
-
-#reshuffle the data set to ensure randomness in the training and testing sets 
-movies_cleaned_removed <- movies_cleaned_removed[sample(nrow(movies_cleaned_removed)), ] # Shuffle the data set
-
-#re-split the data set into training and testing sets 
-set.seed(123) # Ensure reproducibility
-training_indices <- createDataPartition(movies_cleaned_removed$tomatometer_rating, p = 0.8, list = FALSE)
-training_set <- movies_cleaned_removed[training_indices, ]
-testing_set <- movies_cleaned_removed[-training_indices, ]
-
-
-#re-run the model
-lm_model2 <- lm(tomatometer_rating ~ runtime + age_at_streaming + content_rating + actor_popularity + 
-                  genres_Comedy + genres_Horror + genres_Art.House...International + 
-                  genres_Documentary + genres_Drama + genres_Kids...Family + 
-                  genres_Musical...Performing.Arts + genres_Mystery...Suspense + 
-                  genres_Science.Fiction...Fantasy + genres_Special.Interest + 
-                  audience_count + season_Winter + season_Summer +  
-                  season_Fall + num_authors + num_directors + num_actors + release_month, data = training_set) 
-
-summary(lm_model2) #check the summary statistics) #R2 = 0.24, P-value = 2.2e-16 (signifigant)
-plot(lm_model2) #check the residuals
-
-#come back to confirm this is a correct step 
 
 #step 2 - addressing non-linearity
 
 #adding interaction terms 
+# Model with interaction effects between release_year and each season
 
-interaction_formula <- as.formula(
-  "tomatometer_rating ~ runtime + age_at_streaming + content_rating +
-   actor_popularity + audience_count + num_authors + num_directors +
-   num_actors + release_month +
-   content_rating:genres_Comedy + content_rating:genres_Horror +
-   content_rating:genres_Art.House...International +
-   content_rating:genres_Documentary + content_rating:genres_Drama +
-   content_rating:genres_Kids...Family + content_rating:genres_Musical...Performing.Arts +
-   content_rating:genres_Mystery...Suspense + content_rating:genres_Science.Fiction...Fantasy +
-   content_rating:genres_Special.Interest +
-   season_Spring:age_at_streaming + season_Summer:age_at_streaming +
-   season_Fall:age_at_streaming + season_Winter:age_at_streaming"
-)
+#formula to collect all genres and push them into formula string without manually typing 
+genre_vars <- names(training_set)[grepl("^genres_", names(training_set))]
+base_formula <- "tomatometer_rating ~ runtime + audience_rating + audience_count + age_at_streaming + num_authors + num_directors + actor_popularity + content_rating + release_year + season_Winter + season_Summer + season_Fall"
+full_formula_str <- paste(base_formula, paste(genre_vars, collapse=" + "), sep=" + ")
 
-# Fit the updated model with interaction terms
-lm_model3 <- lm(interaction_formula, data = training_set)
-summary(lm_model3) #R2 = 0.2537
-plot(lm_model3)
+#adds the interaction effect between release year and seaon to the formual 
+interaction_terms <- " + release_year:season_Winter + release_year:season_Summer + release_year:season_Fall"
+full_formula_str <- paste(full_formula_str, interaction_terms, sep="")
+
+
+full_formula <- as.formula(full_formula_str)
+
+lm_model2 <- lm(full_formula, data=training_set)
+
+summary(lm_model2) #R2 = 0.5092, adding the interaction terms significantly reduced model performance 
+plot(lm_model2)
+
+
+#improved linearity but still not ideal, will consider adding polynomial terms to release year 
+
+
 
 #adding polynomial terms to account for non-linearity in year and content ratings 
 
-poly_formula <- as.formula(
-  "tomatometer_rating ~ runtime + age_at_streaming + content_rating +
-   actor_popularity + audience_count + num_authors + num_directors +
-   num_actors + release_month +
-   content_rating:genres_Comedy + content_rating:genres_Horror +
-   content_rating:genres_Art.House...International +
-   content_rating:genres_Documentary + content_rating:genres_Drama +
-   content_rating:genres_Kids...Family + content_rating:genres_Musical...Performing.Arts +
-   content_rating:genres_Mystery...Suspense + content_rating:genres_Science.Fiction...Fantasy +
-   content_rating:genres_Special.Interest +
-   season_Spring:age_at_streaming + season_Summer:age_at_streaming +
-   season_Fall:age_at_streaming + season_Winter:age_at_streaming +
-   poly(runtime, 2, raw = TRUE) + poly(age_at_streaming, 2, raw = TRUE) +
-   poly(actor_popularity, 2, raw = TRUE) + poly(audience_count, 2, raw = TRUE) +
-   poly(num_authors, 2, raw = TRUE) + poly(num_directors, 2, raw = TRUE) +
-   poly(num_actors, 2, raw = TRUE) + poly(release_month, 2, raw = TRUE)"
-)
 
-# Fit the updated model with polynomial terms
-lm_model4 <- lm(poly_formula, data = training_set)
-summary(lm_model4) #R2 = 0.2723
-plot(lm_model4) 
+base_formula <- "tomatometer_rating ~ runtime + audience_rating + audience_count + age_at_streaming + num_authors + num_directors + actor_popularity + content_rating + poly(release_year, 2) + season_Winter + season_Summer + season_Fall"
+full_formula_str <- paste(base_formula, paste(genre_vars, collapse=" + "), sep=" + ")
+interaction_terms <- " + release_year:season_Winter + release_year:season_Summer + release_year:season_Fall"
+full_formula_str <- paste(full_formula_str, interaction_terms, sep="")
+full_formula <- as.formula(full_formula_str)
+lm_model3 <- lm(full_formula, data=training_set)
+summary(lm_model3) #R2 0.5145
+plot(lm_model3)
+
+#no change in linearity 
 
 #running stepwise regression to determine the best model 
 
-lm_model5<- step(lm_model4, direction = "both", trace = 1) #run the stepwise regression model
+lm_model4<- step(lm_model3, direction = "both", trace = 1) #run the stepwise regression model
+summary(lm_model4)
+plot(lm_model4) 
+
+lm_model5 <- step(lm_modelKS, direction = "both", trace = 1) #run the stepwise regression model 
 summary(lm_model5)
-plot(lm_model5) 
+plot(lm_model5)
+#stepwise regression does not remove any variables so we will consider this the model for now  
 
+AIC(lm_model5, lm_model4, lm_model3, lm_model2, lm_model1, lm_modelKS) #AIC shows the stepwise model is the best model
 
-
-#stepwise regression does not remove any variables so we will consider this the model for now 
-
-#test the model on the testing set 
-
-# Prepare the data for prediction 
-
-# Extract the predictors and response variable 
-
-
-#model still has a non-linear relationship so we will consider a LASO regression to handle this 
-
-# Fit a LASSO regression model using the same variables as before 
-
-# Prepare the data for the LASSO model 
-
-# Extract the predictors and response variable
-X <- model.matrix(lm_model4)[, -1]  # Remove the intercept column 
-y <- training_set$tomatometer_rating
-
-# Fit the LASSO model 
-lasso_model <- cv.glmnet(X, y, alpha = 1, family = "gaussian")  # Fit the LASSO model with cross-validation
-summary(lasso_model) 
-plot(lasso_model)
-
-#extract the best lambda value 
-best_lambda <- lasso_model$lambda.min
-best_lambda #0.02742045
-
-#apply the best lambda value to the model 
-lasso_model_best <- glmnet(X, y, alpha = 1, lambda = best_lambda, family = "gaussian")  # Fit the LASSO model with the best lambda value
-
-#extract the coefficients from the model 
-coef(lasso_model_best)
-
-
-#predict the tomatometer rating using the LASSO model 
-y_predicted <- predict(lasso_model_best, s = best_lambda, newx = X)  # Predict the tomatometer rating using the LASSO model
-sst <- sum((y - mean(y))^2)  # Calculate the total sum of squares 
-sse <- sum((y - y_predicted)^2)  # Calculate the sum of squared errors
-r_squared <- 1 - sse / sst  # Calculate the R-squared value
-r_squared #0.2718 
-
-
-#check the residuals of the LASSO model 
-residuals <- y - y_predicted  # Calculate the residuals
-qqnorm(residuals)  # Create a QQ plot of the residuals
-qqline(residuals)  # Add a line to the QQ plot
-hist(residuals, breaks = 30, col = "tomato", border = "navy")  # Create a histogram of the residuals
-
-
-#LASSO model shows no improvement in R2 so we will consider the stepwise model as the final model 
-
-
-AIC(lm_model5, lm_model4, lm_model3, lm_model2, lm_model1, lm_modelKS) #AIC shows the stepwise model is the best model 
-
-stargazer(lm_model5, type = "text") 
+#AIC suggest lm_model1 (no interactions or polynomial terms) is the best model we will continue with this model for now. 
 
 #cross validation of the model 
 
 train_control <- trainControl(method = "cv", number = 10)  # Set up the cross-validation method 
-lm_model5_cv <- train(poly_formula, data = training_set, method = "lm", trControl = train_control)  # Fit the model using cross-validation
-lm_model5_cv$results  # Display the results of the cross-validation
+lm_model1_cv <- train(tomatometer_rating ~ . - release_year, data = training_set, method = "lm", trControl = train_control)  # Fit the model using cross-validation
+lm_model1_cv$results  # Display the results of the cross-validation
+ 
+
+#cross-validation shows a stable model at 0.8091 R2 suggesting good model fit 
 
 #using the test set to validate the model 
 
-predictions <- predict(lm_model5, newdata = testing_set)  # Make predictions on the testing set 
+predictions <- predict(lm_model1, newdata = testing_set)  # Make predictions on the testing set 
 rmse <- sqrt(mean((testing_set$tomatometer_rating - predictions)^2))  # Calculate the RMSE 
 print(paste("RMSE:", round(rmse, 2)))  # Print the RMSE 
 
@@ -817,111 +712,62 @@ ggplot(results_df, aes(x = Actual, y = Predicted)) +
   ) +
   guides(color = guide_legend(title.position = "top"))  
 
+#plot shows the model is generally good at fitting but loses accuracy in the extremes (below 20 and above 80)
+
+stargazer(lm_model1, type = "text") #print the model summary statistics
 
 
-#cross-validation on the test set to compare RMSE 
+### Step 2: Binary encoding into high and low to run logistic regression and CART models  
 
-lm_model5_cv <- train(poly_formula, data = testing_set, method = "lm", trControl = train_control)  # Fit the model using cross-validation 
-lm_model5_cv$results  # Display the results of the cross-validation 
+#calculate the median to split the data set into high and low ratings 
+median(movies_cleaned$tomatometer_rating) #median is 63
 
-
-#cross fold validation and prediction on the test data show an R2 of 0.265, suggesting this model captures ~26% of the variance in the data set 
-
-
-### Step 2: Binary encoding into high and low to run logistic regression and CART models 
-movies_cleaned_removed$rating_category <- ifelse(movies_cleaned_removed$tomatometer_rating > 70, "high", "low")
-movies_cleaned_removed$rating_category <- factor(movies_cleaned_removed$rating_category, levels = c("low", "high"))
+#calculate the median to split the data set into high and low ratings 
+movies_cleaned$rating_category <- ifelse(movies_cleaned$tomatometer_rating > 63, "high", "low") # Assign "high" to movies with a rating above 70
+movies_cleaned$rating_category <- factor(movies_cleaned$rating_category, levels = c("low", "high"))
 
 
 #splitting the data set into training and testing sets
 
 #reshuffle the data set to ensure randomness in the training and testing sets
 
-movies_cleaned_removed <- movies_cleaned_removed[sample(nrow(movies_cleaned_removed)), ] # Shuffle the data set
+movies_cleaned <- movies_cleaned[sample(nrow(movies_cleaned)), ] # Shuffle the data set
 
 #re-split the data set into training and testing sets
 
 set.seed(123) # Ensure reproducibility
-training_indices <- createDataPartition(movies_cleaned_removed$rating_category, p = 0.8, list = FALSE)
-training_set <- movies_cleaned_removed[training_indices, ]
-testing_set <- movies_cleaned_removed[-training_indices, ]
+training_indices <- createDataPartition(movies_cleaned$rating_category, p = 0.8, list = FALSE)
+training_set <- movies_cleaned[training_indices, ]
+testing_set <- movies_cleaned[-training_indices, ] 
 
-#running a logistic regression model
+#check for missing values in the data set 
+sum(is.na(training_set)) #no missing values in the training set
+sum(is.na(testing_set)) #no missing values in the testing set
 
-logistic_model <- glm(rating_category ~ runtime + age_at_streaming + content_rating + actor_popularity + 
-                        genres_Comedy + genres_Horror + genres_Art.House...International + 
-                        genres_Documentary + genres_Drama + genres_Kids...Family + 
-                        genres_Musical...Performing.Arts + genres_Mystery...Suspense + 
-                        genres_Science.Fiction...Fantasy + genres_Special.Interest + 
-                        audience_count + season_Winter + season_Summer +  
-                        season_Fall + num_authors + num_directors + num_actors + release_month, 
-                      data = training_set, family = "binomial")
+#remove the missing value from the training set 
 
-summary(logistic_model) 
+training_set <- training_set[complete.cases(training_set), ] #remove the missing value from the training set
 
+#removing the tomater_rating column as it will result in perfect multicollinearity 
 
-#add the int reaction terms to the model 
+glm_model1 <- glm(rating_category ~ . - release_year - tomatometer_rating, data = training_set, family = "binomial") 
+summary(glm_model1)
 
-interaction_formula_logistic <- as.formula(
-  "rating_category ~ runtime + age_at_streaming + content_rating +
-   actor_popularity + audience_count + num_authors + num_directors +
-   num_actors + release_month +
-   content_rating:genres_Comedy + content_rating:genres_Horror +
-   content_rating:genres_Art.House...International +
-   content_rating:genres_Documentary + content_rating:genres_Drama +
-   content_rating:genres_Kids...Family + content_rating:genres_Musical...Performing.Arts +
-   content_rating:genres_Mystery...Suspense + content_rating:genres_Science.Fiction...Fantasy +
-   content_rating:genres_Special.Interest +
-   season_Spring:age_at_streaming + season_Summer:age_at_streaming +
-   season_Fall:age_at_streaming + season_Winter:age_at_streaming"
-)
+#running a stepwise regression to see if we can improve the model 
 
-# Fit the updated model with interaction terms
+glm_model2 <- step(glm_model1, direction = "both", trace = 1) #run the stepwise regression model
 
-logistic_model2 <- glm(interaction_formula_logistic, data = training_set, family = "binomial")
+#evaluating the models 
 
-summary(logistic_model2) 
-
-#add the poloynomial terms to the model 
-
-poly_formula_logistic <- as.formula(
-  "rating_category ~ runtime + age_at_streaming + content_rating +
-   actor_popularity + audience_count + num_authors + num_directors +
-   num_actors + release_month +
-   content_rating:genres_Comedy + content_rating:genres_Horror +
-   content_rating:genres_Art.House...International +
-   content_rating:genres_Documentary + content_rating:genres_Drama +
-   content_rating:genres_Kids...Family + content_rating:genres_Musical...Performing.Arts +
-   content_rating:genres_Mystery...Suspense + content_rating:genres_Science.Fiction...Fantasy +
-   content_rating:genres_Special.Interest +
-   season_Spring:age_at_streaming + season_Summer:age_at_streaming +
-   season_Fall:age_at_streaming + season_Winter:age_at_streaming +
-   poly(runtime, 2, raw = TRUE) + poly(age_at_streaming, 2, raw = TRUE) +
-   poly(actor_popularity, 2, raw = TRUE) + poly(audience_count, 2, raw = TRUE) +
-   poly(num_authors, 2, raw = TRUE) + poly(num_directors, 2, raw = TRUE) +
-   poly(num_actors, 2, raw = TRUE) + poly(release_month, 2, raw = TRUE)"
-)
+pR2(glm_model1)
+pR2(glm_model2)
 
 
-# Fit the updated model with polynomial terms
-logistic_model3 <- glm(poly_formula_logistic, data = training_set, family = "binomial")
-summary(logistic_model3)
+AIC(glm_model1, glm_model2) #AIC shows the stepwise model is the best model 
 
-#running stepwise regression to determine the best model
-logistic_model4 <- step(logistic_model3, direction = "both", trace = 1) #run the stepwise regression model  
+#virtually no change but the stepwise model is slightly better so we will continue with this model 
 
-summary(logistic_model4) 
-
-pR2(logistic_model)
-pR2(logistic_model2)
-pR2(logistic_model3)
-pR2(logistic_model4)
-
-AIC(logistic_model4, logistic_model3, logistic_model2, logistic_model) #AIC shows the stepwise model is the best model 
-
-#logistic model remains consisten with OLS will continue using this model for predicitions 
-
-predictions_prob <- predict(logistic_model, newdata = testing_set, type = "response")
+predictions_prob <- predict(glm_model5, newdata = testing_set, type = "response")
 predictions_class <- ifelse(predictions_prob > 0.5, "high", "low")
 
 # Confusion Matrix
