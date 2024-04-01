@@ -751,23 +751,29 @@ training_set <- training_set[complete.cases(training_set), ] #remove the missing
 #removing the tomater_rating column as it will result in perfect multicollinearity 
 
 glm_model1 <- glm(rating_category ~ . - release_year - tomatometer_rating, data = training_set, family = "binomial") 
-summary(glm_model1)
+summary(glm_model1)  
+
+#removing the tomatometer_status column as it will result in multicollinearity 
+
+glm_model2 <- glm(rating_category ~ . - release_year - tomatometer_rating - tomatometer_status, data = training_set, family = "binomial")
+summary(glm_model2)
 
 #running a stepwise regression to see if we can improve the model 
 
-glm_model2 <- step(glm_model1, direction = "both", trace = 1) #run the stepwise regression model
+glm_model3 <- step(glm_model2, direction = "both", trace = 1) #run the stepwise regression model
+summary(glm_model3) 
 
 #evaluating the models 
 
 pR2(glm_model1)
 pR2(glm_model2)
+pR2(glm_model3)
 
+AIC(glm_model1, glm_model2, glm_model3) #AIC shows the stepwise model is the best model 
 
-AIC(glm_model1, glm_model2) #AIC shows the stepwise model is the best model 
+#stepwise shows a moderate improvement over glm_model2 so will proceed with this 
 
-#virtually no change but the stepwise model is slightly better so we will continue with this model 
-
-predictions_prob <- predict(glm_model5, newdata = testing_set, type = "response")
+predictions_prob <- predict(glm_model3, newdata = testing_set, type = "response")
 predictions_class <- ifelse(predictions_prob > 0.5, "high", "low")
 
 # Confusion Matrix
@@ -775,62 +781,70 @@ table(Predicted = predictions_class, Actual = testing_set$rating_category)
 
 # Accuracy
 accuracy <- sum(predictions_class == testing_set$rating_category) / nrow(testing_set)
-accuracy 
+accuracy #0.78 some room for improvement but generally much better than random guessing 
 
-#model is generally accurate with a 71.3% accuracy rate 
 
 #recall and precision 
 
 # Confusion matrix values
-TP <- 637  # True Positives: "high" predicted as "high"
-FP <- 546  # False Positives: "low" predicted as "high"
-FN <- 254  # False Negatives: "high" predicted as "low"
+TP <- 1077  # True Positives: "high" predicted as "high"
+FP <- 291  # False Positives: "low" predicted as "high"
+FN <- 316 # False Negatives: "high" predicted as "low"
 
 # Calculate Precision
 Precision <- TP / (TP + FP)  
+Precision #0.7872  
 
-#precision score is 0.54, model has a tendency to predict high ratings
 
 # Calculate Recall
 Recall <- TP / (TP + FN) 
-
-#recall is 0.71, model is good at predicting high ratings
+Recall 
+#recall is 0.7731
 
 # Calculate F1 Score
 F1_Score <- 2 * (Precision * Recall) / (Precision + Recall) 
+F1_Score 
+#F1 score is 0.7801
 
-#F1 score is 0.62, suggesting the model is not perfect but generally better than random guessing 
+#cross-validation of the model 
 
-# Print the results
-cat("Precision for 'high':", Precision, "\n")
-cat("Recall for 'high':", Recall, "\n")
-cat("F1 Score for 'high':", F1_Score, "\n")
+train_control <- trainControl(method = "cv", number = 10)  # Set up the cross-validation method 
+glm_model3_cv <- train(rating_category ~ . - release_year - tomatometer_rating - tomatometer_status, data = training_set, method = "glm", trControl = train_control)  # Fit the model using cross-validation 
+glm_model3_cv$results  # Display the results of the cross-validation
 
-
+#model is generally stable but has a slight tendency to underpredict 
 
 #running a CART model 
 
-library(rpart)
+#ensure rating_category is a factor 
+training_set$rating_category <- as.factor(training_set$rating_category)
+
+#check for missing values in the data set 
+sum(is.na(training_set)) #no missing values in the training set
+sum(is.na(testing_set)) #no missing values in the testing set
 
 # Assuming movies_cleaned_removed is your dataset and it's already processed
 # Fitting a CART model to the training data
-cart_model <- rpart(rating_category ~ runtime + age_at_streaming + content_rating +
-                      actor_popularity + audience_count + num_authors + num_directors +
-                      num_actors + release_month + genres_Comedy + genres_Horror +
-                      genres_Art.House...International + genres_Documentary + genres_Drama +
-                      genres_Kids...Family + genres_Musical...Performing.Arts +
-                      genres_Mystery...Suspense + genres_Science.Fiction...Fantasy +
-                      genres_Special.Interest + season_Winter + season_Summer +
-                      season_Fall, 
+cart_model <- rpart(rating_category  ~ . - release_year - tomatometer_rating - tomatometer_status,  
                     data = training_set, method = "class")
 
 print(cart_model)  # Display the CART model 
 
-rpart.plot(cart_model, main="CART Model for Movie Ratings", extra=102, under=TRUE, faclen=0)
+par(mfrow = c(1, 1))  # Reset the plot layout to a single plot
+rpart.plot(cart_model, main="CART Model for Movie Ratings", extra=102, under=TRUE, faclen=0) 
 
 
-control <- trainControl(method="cv", number=10, savePredictions = TRUE, search = "grid")
+#Max depth to validate the best model 
 
+# Ensure the response variable is a factor with two levels
+training_set$rating_category <- factor(training_set$rating_category, levels = c("Low", "High"))
+
+
+# Set up cross-validation controls
+control <- trainControl(method="cv", number=3, savePredictions = TRUE, search = "grid")
+#TODO: change the number of folds from 3 to 5 and 10  and see how results change
+
+# Initialize an empty data frame to store results
 results <- data.frame(maxdepth = integer(), 
                       Accuracy = numeric(), 
                       F1_Score = numeric(), 
@@ -838,23 +852,15 @@ results <- data.frame(maxdepth = integer(),
                       Recall=numeric())
 
 # Loop over desired maxdepth values
-for (maxdepth in 1:20) {
+for (maxdepth in 1:7) {
   # Train the model with the current maxdepth setting using Cross Validation
-  fit <- train(rating_category ~ runtime + age_at_streaming + content_rating +
-                 actor_popularity + audience_count + num_authors + num_directors +
-                 num_actors + release_month + genres_Comedy + genres_Horror +
-                 genres_Art.House...International + genres_Documentary + genres_Drama +
-                 genres_Kids...Family + genres_Musical...Performing.Arts +
-                 genres_Mystery...Suspense + genres_Science.Fiction...Fantasy +
-                 genres_Special.Interest + season_Winter + season_Summer +
-                 season_Fall,  
+  fit <- train(rating_category ~ . - release_year - tomatometer_rating - tomatometer_status,
                data = training_set, 
                method = "rpart",
                trControl = control, 
                tuneGrid = expand.grid(cp = 0.01), # cp is set to a single value as an example
                control = rpart.control(maxdepth = maxdepth, cp = 0.01)) # Adjust cp as needed
-}
-
+  
   # Predict on the testing set to get the confusion matrix
   predictions <- predict(fit, training_set, type = "raw")
   cm <- confusionMatrix(predictions, training_set$rating_category)
@@ -872,6 +878,8 @@ for (maxdepth in 1:20) {
                               F1_Score = f1_score,
                               Precision= precision,
                               Recall = recall))
+}
+
 
 
 
@@ -892,19 +900,16 @@ ggplot(data_long, aes(x = maxdepth, y = Value, color = Metric)) +
   ylab("Score") +
   theme_minimal() 
 
-best_maxdepth_f1 <- results$maxdepth[which.max(results$F1_Score)]
+best_maxdepth_f1 <- results$maxdepth[which.max(results$F1_Score)] 
+best_maxdepth_f1 #print the best max depth for the model
 
-best_fit_F1 <- rpart(rating_category ~ runtime + age_at_streaming + content_rating +
-                       actor_popularity + audience_count + num_authors + num_directors +
-                       num_actors + release_month + genres_Comedy + genres_Horror +
-                       genres_Art.House...International + genres_Documentary + genres_Drama +
-                       genres_Kids...Family + genres_Musical...Performing.Arts +
-                       genres_Mystery...Suspense + genres_Science.Fiction...Fantasy +
-                       genres_Special.Interest + season_Winter + season_Summer +
-                       season_Fall, 
+# representing the best max depth for the model based on your prior analysis
+
+best_fit_F1 <- rpart(rating_category ~ . - release_year - tomatometer_rating - tomatometer_status,
                      data = training_set, 
                      method = "class", 
                      control = rpart.control(maxdepth = best_maxdepth_f1, cp = 0.01))
+
 
 
 rpart.plot(best_fit_F1, main="CART Model for Movie Ratings", extra=102, under=TRUE, faclen=0) 
@@ -920,27 +925,27 @@ table(Predicted = predictions, Actual = testing_set$rating_category)
 # Accuracy
 
 accuracy <- sum(predictions == testing_set$rating_category) / nrow(testing_set)
-accuracy
+accuracy #0.7811
 
 #recall and precision
 
 # Confusion matrix values
-TP <- 597  # True Positives: "high" predicted as "high"
-FP <- 266  # False Positives: "low" predicted as "high"
-FN <- 586  # False Negatives: "high" predicted as "low" 
+TP <- 1121  # True Positives: "high" predicted as "high"
+FP <- 338  # False Positives: "low" predicted as "high"
+FN <- 273  # False Negatives: "high" predicted as "low" 
 
 # Calculate Precision
 
 Precision <- TP / (TP + FP)
-Precision #0.5384
+Precision #0.7872
 # Calculate Recall
 
 Recall <- TP / (TP + FN)
-Recall #0.7149
+Recall #0.7773
 # Calculate F1 Score
 
 F1_Score <- 2 * (Precision * Recall) / (Precision + Recall)
-F1_Score #0.6142 
+F1_Score #0.7801
 
 
-#F1 score did not improve using best max depth so we will consider the model with the default max depth 
+ 
