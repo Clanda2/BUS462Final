@@ -1117,3 +1117,6 @@ ggplot(metrics_melted, aes(x = Split, y = value, fill = variable)) +
   guides(fill = guide_legend(title.position = "top", title.hjust = 0.5))
 
 
+#Conclusion: CART does not differ signifigantly in prediction power of the logit model when we train the model using a 70/30 improvement 
+#we see a minor improvement in the F1 score but this comes at the expense of a lower precision score. 
+
