@@ -563,13 +563,20 @@ print(years_seasonality) #years_seasonlity stored as a data object for later use
 
 movies_cleaned <- read.csv("/Users/chase/Documents/movies_cleaned_3.csv" , header = TRUE) #read in the cleaned data set
 
-#Key Question: what factors influence the tomatometer rating of a movie on Rotten Tomatoes?   
+
+
+#Question: what factors influence the tomatometer rating of a movie on Rotten Tomatoes?   
 
 #drop the movie_title, directors, authors, actors, original_release_date, streaming_release_date columns as they are not needed for the analysis
 
 movies_cleaned <- movies_cleaned %>% select(-movie_title, -directors, -authors, -actors, -original_release_date, -streaming_release_date)
 movies_cleaned <- movies_cleaned %>% select(-season_visualization) #drop the season_visualization column as it is not needed for the analysis
-names(movies_cleaned)
+names(movies_cleaned) 
+
+#check for missing values in the data set 
+sum(is.na(movies_cleaned)) #1 missing values in the data set 
+movies_cleaned <- movies_cleaned[complete.cases(movies_cleaned), ] #remove the missing values from the data set
+
 #shuffling the data set to ensure randomness in the training and testing sets 
 movies_cleaned <- movies_cleaned[sample(nrow(movies_cleaned)), ] # Shuffle the data set 
 
@@ -581,14 +588,7 @@ OLS_set <- movies_cleaned %>% select(-season_Spring, -genres_Romance) #drop the 
 set.seed(123) # Ensure reproducibility
 training_indices <- createDataPartition(OLS_set$tomatometer_rating, p = 0.8, list = FALSE)
 training_set <- OLS_set[training_indices, ]
-testing_set <- OLS_set[-training_indices, ]  
-
-#check for missing values in the data set 
-
-sum(is.na(training_set)) #no missing values in the training set 
-#remove the missing value from the training set 
-training_set <- training_set[complete.cases(training_set), ] #remove the missing value from the training set
-sum(is.na(testing_set)) #no missing values in the testing set
+testing_set <- OLS_set[-training_indices, ]   
 
 
 #run the first kitchen sink model to see the effect of all variables on the tomatometer rating 
@@ -604,16 +604,156 @@ lm_model1 <- lm(tomatometer_rating ~ . - release_year, data = training_set)
 summary(lm_model1) #check the summary statistics) #R2 = 0.243, P-value = 2.2e-16 (signifigant)
 #set the plot to 2x2 
 par(mfrow = c(2, 2))
-
 plot(lm_model1) #check the residuals
 
-#plot shows some high leverage points and issues with non-linearity, we will add interaction terms to attempt to account for non-linearity 
+#this model generally performs well but there are some issues: 
+#1. Large outliers that are likely skewing the data 
+#2. Some non-linearity in the upper range of the residuals 
+#3. Likely some multicollinearity between the variables, mainly audience_rating and tomater_rating 
+#we will adjust the data set to address these issues and rerun the model 
+
+#step 1 - addressing outliers 
+
+cooks_d <- cooks.distance(lm_model1) #calculate the cooks distance
+n <- length(fitted(lm_model1))
+k <- length(lm_model1$coefficients)
+threshold <- 4/(n-k-1) # Set the threshold for Cook's distance of 4 divided by the number of observations minus the number of predictors minus 1
+
+# Identify the indices of the outliers
+outliers <- which(cooks_d > threshold)
+print(outliers) 
+length(outliers) - #430 outliers identified that exceed the threshold 
+
+#remove the outliers from the data set 
+movies_cleaned <- movies_cleaned[-outliers, ] #remove the extreme outliers
+OLS_set <- OLS_set[-outliers, ] #remove the extreme outliers 
+
+#shuffle the data set 
+OLS_set <- OLS_set[sample(nrow(OLS_set)), ] # Shuffle the data set 
+
+#resplit the data 
+set.seed(123) # Ensure reproducibility
+training_indices <- createDataPartition(OLS_set$tomatometer_rating, p = 0.8, list = FALSE) 
+training_set <- OLS_set[training_indices, ] 
+testing_set <- OLS_set[-training_indices, ] 
+
+#rerun the model 
+lm_model2 <- lm(tomatometer_rating ~ . - release_year, data = training_set)
+summary(lm_model2) 
+plot(lm_model2)  
+
+#still has outlier but will continue with this model for now and adjust later if necessary
 
 
-#step 2 - addressing non-linearity
+#Tomatometer status and rating are highly correlated so we will remove the status column from the data set 
+movies_cleaned <- movies_cleaned %>% select(-tomatometer_status) #drop the tomatometer_status column   
+OLS_set <- OLS_set %>% select(-tomatometer_status) #drop the tomatometer_status column
+
+#shuffle and resplit the data set 
+OLS_set <- OLS_set[sample(nrow(OLS_set)), ] # Shuffle the data set  
+
+#resplit the data 
+set.seed(123) # Ensure reproducibility 
+training_indices <- createDataPartition(OLS_set$tomatometer_rating, p = 0.8, list = FALSE) 
+training_set <- OLS_set[training_indices, ] 
+testing_set <- OLS_set[-training_indices, ] 
+
+#rerun the model 
+lm_model3 <- lm(tomatometer_rating ~ . - release_year, data = training_set) 
+summary(lm_model3) 
+plot(lm_model3) #Adjusted R^2 = 0.5164 
+
+#model prediction power is lower but this is expected. However, we see some improvement in the residuals 
+#we will continue with this model for now and adjust later if necessary. 
+
+#step 2 - #applying log-transformations to skewed variables  
+
+#Actor popularity 
+movies_cleaned$actor_popularity <- movies_cleaned$actor_popularity + 1 #add a constant to avoid log(0)
+movies_cleaned$actor_popularity <- log1p(movies_cleaned$actor_popularity) #apply a log transformation to the actor popularity  
+
+OLS_set$actor_popularity <- OLS_set$actor_popularity + 1 #add a constant to avoid log(0) 
+OLS_set$actor_popularity <- log1p(OLS_set$actor_popularity) #apply a log transformation to the actor popularity  
+
+#number of actors 
+movies_cleaned$num_actors <- log1p(movies_cleaned$num_actors) #apply a log transformation to the number of actors 
+OLS_set$num_actors <- log1p(OLS_set$num_actors) #apply a log transformation to the number of actors 
+
+#age at streaming 
+
+#check for zeros or negative values in the age at streaming column 
+sum(movies_cleaned$age_at_streaming <= 0) #no zeros or negative values so we can proceed 
+
+#find the lowest value in the age at streaming column and add that a constant to avoid log(0) 
+
+min_age <- min(movies_cleaned$age_at_streaming) #find the minimum value 
+movies_cleaned$age_at_streaming <- movies_cleaned$age_at_streaming + abs(min_age) + 1 #add the minimum value to avoid log(0)  
+OLS_set$age_at_streaming <- OLS_set$age_at_streaming + abs(min_age) + 1 #add the minimum value to avoid log(0)
+
+movies_cleaned$age_at_streaming <- log1p(movies_cleaned$age_at_streaming) #apply a log transformation to the age at streaming  
+OLS_set$age_at_streaming <- log1p(OLS_set$age_at_streaming) #apply a log transformation to the age at streaming 
+ 
+
+#shuffle and resplit the data set
+
+OLS_set <- OLS_set[sample(nrow(OLS_set)), ] # Shuffle the data set 
+
+#resplit the data 
+set.seed(123) # Ensure reproducibility 
+training_indices <- createDataPartition(OLS_set$tomatometer_rating, p = 0.8, list = FALSE) 
+training_set <- OLS_set[training_indices, ] 
+testing_set <- OLS_set[-training_indices, ] 
+
+#rerun the model
+lm_model4 <- lm(tomatometer_rating ~ . - release_year, data = training_set)
+summary(lm_model4)
+plot(lm_model4) #Adjusted R^2 = 0.5116  
+ 
+#small improvement in the residuals but we will now scale the data set to improve the model 
+
+#step 3 - scaling the data set using z-score standardization 
+
+# Get only numeric columns for scaling
+numeric_columns <- sapply(movies_cleaned, is.numeric)
+
+# Apply z-score standardization to only numeric columns
+movies_clean_scaled <- movies_cleaned
+movies_clean_scaled[numeric_columns] <- scale(movies_cleaned[numeric_columns])
+
+#pull the OLS set back out of the scaled and transformed data set 
+OLS_set <- movies_clean_scaled %>% select(-season_Spring, -genres_Romance) #drop the season_Spring and genres_Action...Adventure columns to avoid multicollinearity 
+
+#shuffle and resplit the data set 
+OLS_set <- OLS_set[sample(nrow(OLS_set)), ] # Shuffle the data set 
+
+set.seed(123) # Ensure reproducibility 
+training_indices <- createDataPartition(OLS_set$tomatometer_rating, p = 0.8, list = FALSE) 
+training_set <- OLS_set[training_indices, ] 
+testing_set <- OLS_set[-training_indices, ] 
+
+#rerun the model 
+
+lm_model5 <- lm(tomatometer_rating ~ . - release_year, data = training_set)
+summary(lm_model5) 
+plot(lm_model5) #Adjusted R^2 = 0.5038  
+
+#step 4 - addressing non-linearity 
+
+#improved linearity but still not ideal, will consider adding polynomial terms but first will find the 
+#problematic variables 
+
+
+model_formula <- formula(lm_model5)
+predictor_variables <- all.vars(model_formula)[-1]  # Exclude the response variable
+
+# Loop over all predictor variables and create partial residual plots
+library(car)
+for (var in predictor_variables) {
+  crPlots(lm_model5, terms.= as.formula(paste('~', var)))
+} 
 
 #adding interaction terms 
-# Model with interaction effects between release_year and each season
+# Model with interaction effects between release_year a4nd each season
 
 #formula to collect all genres and push them into formula string without manually typing 
 genre_vars <- names(training_set)[grepl("^genres_", names(training_set))]
@@ -624,60 +764,50 @@ full_formula_str <- paste(base_formula, paste(genre_vars, collapse=" + "), sep="
 interaction_terms <- " + release_year:season_Winter + release_year:season_Summer + release_year:season_Fall"
 full_formula_str <- paste(full_formula_str, interaction_terms, sep="")
 
-
 full_formula <- as.formula(full_formula_str)
+lm_model6 <- lm(full_formula, data=training_set)
+summary(lm_model6) #adjusted R2 = 0.5127 
+plot(lm_model6)
 
-lm_model2 <- lm(full_formula, data=training_set)
+#adding polynomial terms to account for non-linearity in year and audience rating
 
-summary(lm_model2) #R2 = 0.5092, adding the interaction terms significantly reduced model performance 
-plot(lm_model2)
-
-
-#improved linearity but still not ideal, will consider adding polynomial terms to release year 
-
-
-
-#adding polynomial terms to account for non-linearity in year and content ratings 
-
-
-base_formula <- "tomatometer_rating ~ runtime + audience_rating + audience_count + age_at_streaming + num_authors + num_directors + actor_popularity + content_rating + poly(release_year, 2) + season_Winter + season_Summer + season_Fall"
+base_formula <- "tomatometer_rating ~ runtime + poly(audience_rating, 2) + audience_count + age_at_streaming + num_authors + num_directors + actor_popularity + content_rating + poly(release_year, 2) + season_Winter + season_Summer + season_Fall"
 full_formula_str <- paste(base_formula, paste(genre_vars, collapse=" + "), sep=" + ")
 interaction_terms <- " + release_year:season_Winter + release_year:season_Summer + release_year:season_Fall"
 full_formula_str <- paste(full_formula_str, interaction_terms, sep="")
 full_formula <- as.formula(full_formula_str)
-lm_model3 <- lm(full_formula, data=training_set)
-summary(lm_model3) #R2 0.5145
-plot(lm_model3)
+lm_model7 <- lm(full_formula, data=training_set)
+summary(lm_model7) #R2 0.5135
+plot(lm_model7)
 
-#no change in linearity 
+#very little change in linearity but small model improvement, will proceed to stepwise but may 
+#consider LASSO model to handle non-linearity 
 
 #running stepwise regression to determine the best model 
 
-lm_model4<- step(lm_model3, direction = "both", trace = 1) #run the stepwise regression model
-summary(lm_model4)
-plot(lm_model4) 
+lm_model8<- step(lm_model7, direction = "both", trace = 1) #run the stepwise regression model
+summary(lm_model8)
+plot(lm_model8) #R^2 = 0.5147
 
-lm_model5 <- step(lm_modelKS, direction = "both", trace = 1) #run the stepwise regression model 
-summary(lm_model5)
-plot(lm_model5)
-#stepwise regression does not remove any variables so we will consider this the model for now  
 
-AIC(lm_model5, lm_model4, lm_model3, lm_model2, lm_model1, lm_modelKS) #AIC shows the stepwise model is the best model
+#stepwise does not remove any variables so we will proceed with the model as is 
 
-#AIC suggest lm_model1 (no interactions or polynomial terms) is the best model we will continue with this model for now. 
+AIC(lm_model3, lm_model4, lm_model5, lm_model6, lm_model7, lm_model8) #check the AIC values to determine the best model
+
+#model 8 has the lowest AIC value so we will proceed with this model. 
 
 #cross validation of the model 
 
 train_control <- trainControl(method = "cv", number = 10)  # Set up the cross-validation method 
-lm_model1_cv <- train(tomatometer_rating ~ . - release_year, data = training_set, method = "lm", trControl = train_control)  # Fit the model using cross-validation
-lm_model1_cv$results  # Display the results of the cross-validation
+lm_model8_cv <- train(tomatometer_rating ~ . - release_year, data = training_set, method = "lm", trControl = train_control)  # Fit the model using cross-validation
+lm_model8_cv$results  # Display the results of the cross-validation
  
 
-#cross-validation shows a stable model at 0.8091 R2 suggesting good model fit 
+#cross-validation shows a relatively stable modell 
 
 #using the test set to validate the model 
 
-predictions <- predict(lm_model1, newdata = testing_set)  # Make predictions on the testing set 
+predictions <- predict(lm_model8, newdata = testing_set)  # Make predictions on the testing set 
 rmse <- sqrt(mean((testing_set$tomatometer_rating - predictions)^2))  # Calculate the RMSE 
 print(paste("RMSE:", round(rmse, 2)))  # Print the RMSE 
 
@@ -704,68 +834,86 @@ ggplot(results_df, aes(x = Actual, y = Predicted)) +
   ) +
   guides(color = guide_legend(title.position = "top"))  
 
-#plot shows the model is generally good at fitting but loses accuracy in the extremes (below 20 and above 80)
+#showing summary stats for lm_model8 
 
-stargazer(lm_model1, type = "text") #print the model summary statistics
-
+stargazer(lm_model8, type = "text") #print the model summary statistics  
 
 ### Step 2: Binary encoding into high and low to run logistic regression and CART models  
 
 #calculate the median to split the data set into high and low ratings 
-median(movies_cleaned$tomatometer_rating) #median is 63
+median(movies_clean_scaled$tomatometer_rating) #median is 0.1428094
 
 #calculate the median to split the data set into high and low ratings 
-movies_cleaned$rating_category <- ifelse(movies_cleaned$tomatometer_rating > 63, "high", "low") # Assign "high" to movies with a rating above 70
-movies_cleaned$rating_category <- factor(movies_cleaned$rating_category, levels = c("low", "high"))
-
+movies_clean_scaled$rating_category <- ifelse(movies_cleaned$tomatometer_rating > 0.1428094, "high", "low") # Assign "high" to movies with a rating above the median (scaled)
+movies_clean_scaled$rating_category <- factor(movies_cleaned$rating_category, levels = c("low", "high"))
 
 #splitting the data set into training and testing sets
 
 #reshuffle the data set to ensure randomness in the training and testing sets
 
-movies_cleaned <- movies_cleaned[sample(nrow(movies_cleaned)), ] # Shuffle the data set
+movies_clean_scaled <- movies_clean_scaled[sample(nrow(movies_clean_scaled)), ] # Shuffle the data set
 
 #re-split the data set into training and testing sets
 
 set.seed(123) # Ensure reproducibility
-training_indices <- createDataPartition(movies_cleaned$rating_category, p = 0.8, list = FALSE)
-training_set <- movies_cleaned[training_indices, ]
-testing_set <- movies_cleaned[-training_indices, ] 
+training_indices <- createDataPartition(movies_clean_scaled$rating_category, p = 0.8, list = FALSE)
+training_set <- movies_clean_scaled[training_indices, ]
+testing_set <- movies_clean_scaled[-training_indices, ] 
 
-#check for missing values in the data set 
-sum(is.na(training_set)) #no missing values in the training set
-sum(is.na(testing_set)) #no missing values in the testing set
-
-#remove the missing value from the training set 
-
-training_set <- training_set[complete.cases(training_set), ] #remove the missing value from the training set
 
 #removing the tomater_rating column as it will result in perfect multicollinearity 
 
 glm_model1 <- glm(rating_category ~ . - release_year - tomatometer_rating, data = training_set, family = "binomial") 
-summary(glm_model1)  
+summary(glm_model1)   
 
-#removing the tomatometer_status column as it will result in multicollinearity 
+#adding the interactions terms to the model just as we did with the linear regression model 
 
-glm_model2 <- glm(rating_category ~ . - release_year - tomatometer_rating - tomatometer_status, data = training_set, family = "binomial")
-summary(glm_model2)
+genre_vars <- names(training_set)[grepl("^genres_", names(training_set))]
+base_formula <- "rating_category ~ runtime + audience_rating + audience_count + age_at_streaming + num_authors + num_directors + actor_popularity + content_rating + release_year + season_Winter + season_Summer + season_Fall + season_Spring"
+full_formula_str <- paste(base_formula, paste(genre_vars, collapse=" + "), sep=" + ")
+
+#adds the interaction effect between release year and season to the formula 
+interaction_terms <- " + release_year:season_Winter + release_year:season_Summer + release_year:season_Fall + release_year:season_Spring"
+full_formula_str <- paste(full_formula_str, interaction_terms, sep="")
+
+full_formula <- as.formula(full_formula_str)
+glm_model2 <- glm(full_formula, data=training_set, family = "binomial")
+summary(glm_model2) 
+
+
+#adding the polynomial terms to the model 
+
+base_formula <- "rating_category ~ runtime + poly(audience_rating, 2) + audience_count + age_at_streaming + num_authors + num_directors + actor_popularity + content_rating + poly(release_year, 2) + season_Winter + season_Summer + season_Fall + season_Spring"
+full_formula_str <- paste(base_formula, paste(genre_vars, collapse=" + "), sep=" + ")
+interaction_terms <- " + release_year:season_Winter + release_year:season_Summer + release_year:season_Fall + release_year:season_Spring"
+full_formula_str <- paste(full_formula_str, interaction_terms, sep="")
+full_formula <- as.formula(full_formula_str)
+glm_model3 <- glm(full_formula, data=training_set, family = "binomial")
+summary(glm_model3) 
+
 
 #running a stepwise regression to see if we can improve the model 
 
-glm_model3 <- step(glm_model2, direction = "both", trace = 1) #run the stepwise regression model
-summary(glm_model3) 
+glm_model4 <- step(glm_model3, direction = "both", trace = 1) #run the stepwise regression model 
+summary(glm_model4) 
 
 #evaluating the models 
 
 pR2(glm_model1)
 pR2(glm_model2)
-pR2(glm_model3)
+pR2(glm_model3) 
+pR2(glm_model4)
 
-AIC(glm_model1, glm_model2, glm_model3) #AIC shows the stepwise model is the best model 
+AIC(glm_model1, glm_model2, glm_model3, glm_model4) #AIC shows the stepwise model is the best model  
 
-#stepwise shows a moderate improvement over glm_model2 so will proceed with this 
+#compare the variables included in glm_model3 to those in glm_model4 
 
-predictions_prob <- predict(glm_model3, newdata = testing_set, type = "response")
+summary(glm_model3) #glm_model3 includes all variables  
+summary(glm_model4) #interestingly glm_model 4 removes a significant number of variables 
+
+#glm 4 has a lower AIC value so we will proceed with this model 
+
+predictions_prob <- predict(glm_model4, newdata = testing_set, type = "response")
 predictions_class <- ifelse(predictions_prob > 0.5, "high", "low")
 
 # Confusion Matrix
@@ -773,30 +921,29 @@ table(Predicted = predictions_class, Actual = testing_set$rating_category)
 
 # Accuracy
 accuracy <- sum(predictions_class == testing_set$rating_category) / nrow(testing_set)
-accuracy #0.78 some room for improvement but generally much better than random guessing 
+accuracy #0.49, worse than random guessing
 
 
 #recall and precision 
 
 # Confusion matrix values
-TP <- 1077  # True Positives: "high" predicted as "high"
-FP <- 291  # False Positives: "low" predicted as "high"
-FN <- 316 # False Negatives: "high" predicted as "low"
+TP <- 664  # True Positives: "high" predicted as "high"
+FP <- 684 # False Positives: "low" predicted as "high"
+FN <- 688 # False Negatives: "high" predicted as "low"
 
 # Calculate Precision
 Precision <- TP / (TP + FP)  
-Precision #0.7872  
-
+Precision #0.4925 
 
 # Calculate Recall
 Recall <- TP / (TP + FN) 
 Recall 
-#recall is 0.7731
+#recall is 0.4911
 
 # Calculate F1 Score
 F1_Score <- 2 * (Precision * Recall) / (Precision + Recall) 
 F1_Score 
-#F1 score is 0.7801
+#F1 score is 0.4918 
 
 #cross-validation of the model 
 
