@@ -610,7 +610,7 @@ plot(lm_model1) #check the residuals
 #1. Large outliers that are likely skewing the data 
 #2. Some non-linearity in the upper range of the residuals 
 #3. Likely some multicollinearity between the variables, mainly audience_rating and tomater_rating 
-#we will adjust the data set to address these issues and rerun the model 
+#we will adjust the data set to address these issues and rerun the models 
 
 #step 1 - addressing outliers 
 
@@ -844,8 +844,12 @@ stargazer(lm_model8, type = "text") #print the model summary statistics
 median(movies_clean_scaled$tomatometer_rating) #median is 0.1428094
 
 #calculate the median to split the data set into high and low ratings 
-movies_clean_scaled$rating_category <- ifelse(movies_cleaned$tomatometer_rating > 0.1428094, "high", "low") # Assign "high" to movies with a rating above the median (scaled)
-movies_clean_scaled$rating_category <- factor(movies_cleaned$rating_category, levels = c("low", "high"))
+movies_clean_scaled$rating_category <- ifelse(movies_clean_scaled$tomatometer_rating > 0.1428094, "high", "low") # Assign "high" to movies with a rating above the median (scaled)
+
+#convert the rating category to a factor 
+movies_clean_scaled$rating_category <- as.factor(movies_clean_scaled$rating_category) # Convert to factor for logistic regression
+str(movies_clean_scaled) #check the data set
+
 
 #splitting the data set into training and testing sets
 
@@ -967,43 +971,41 @@ table(Predicted = predictions_class, Actual = testing_set$rating_category)
 accuracy <- sum(predictions_class == testing_set$rating_category) / nrow(testing_set) 
 accuracy #0.49, worse than random guessing 
 
-#no change in accuracy between the models will proceed with glm_model4 for now 
+#no change in accuracy between the models will proceed with glm_model5 for now  
+
+summary(glm_model5) 
 
 
-#### CODE FROM HERE DOWN STILL NEEDS EDITS ###
+#### EVERYTHING HERE DOWN NEEDS EDIT #### 
+
 
 #cross-validation of the model 
-
 train_control <- trainControl(method = "cv", number = 10)  # Set up the cross-validation method 
-glm_model3_cv <- train(rating_category ~ . - release_year - tomatometer_rating - tomatometer_status, data = training_set, method = "glm", trControl = train_control)  # Fit the model using cross-validation 
-glm_model3_cv$results  # Display the results of the cross-validation
+glm_model5_cv <- train(
+  rating_category ~ audience_count + season_Winter + season_Fall +
+    genres_Art.House...International + genres_Science.Fiction...Fantasy +
+    season_Winter:release_year,
+  data = training_set,
+  method = "glm",
+  family = "binomial",
+  trControl = train_control
+)
+glm_model5_cv$results  # Display the results of the cross-validation
 
-#model is generally stable but has a slight tendency to underpredict 
 
-#running a CART model 
 
-#ensure rating_category is a factor 
-training_set$rating_category <- as.factor(training_set$rating_category)
 
-#check for missing values in the data set 
-sum(is.na(training_set)) #no missing values in the training set
-sum(is.na(testing_set)) #no missing values in the testing set
-
-# Assuming movies_cleaned_removed is your dataset and it's already processed
 # Fitting a CART model to the training data
-cart_model <- rpart(rating_category  ~ . - release_year - tomatometer_rating - tomatometer_status,  
-                    data = training_set, method = "class")
+cart_model <- rpart(rating_category ~ . - release_year - tomatometer_rating - audience_rating,  
+                    data = training_set, method = "class") 
+
 
 print(cart_model)  # Display the CART model 
 
 par(mfrow = c(1, 1))  # Reset the plot layout to a single plot
 rpart.plot(cart_model, main="CART Model for Movie Ratings", extra=102, under=TRUE, faclen=0) 
 
-
 #Max depth to validate the best model 
-
-# Ensure the response variable is a factor with two levels
-training_set$rating_category <- factor(training_set$rating_category, levels = c("Low", "High"))
 
 
 # Set up cross-validation controls
@@ -1020,7 +1022,7 @@ results <- data.frame(maxdepth = integer(),
 # Loop over desired maxdepth values
 for (maxdepth in 1:7) {
   # Train the model with the current maxdepth setting using Cross Validation
-  fit <- train(rating_category ~ . - release_year - tomatometer_rating - tomatometer_status,
+  fit <- train(rating_category ~ . - release_year - tomatometer_rating - audience_rating, 
                data = training_set, 
                method = "rpart",
                trControl = control, 
@@ -1071,7 +1073,7 @@ best_maxdepth_f1 #print the best max depth for the model
 
 # representing the best max depth for the model based on your prior analysis
 
-best_fit_F1 <- rpart(rating_category ~ . - release_year - tomatometer_rating - tomatometer_status,
+best_fit_F1 <- rpart(rating_category ~ . - release_year - tomatometer_rating - audience_rating, 
                      data = training_set, 
                      method = "class", 
                      control = rpart.control(maxdepth = best_maxdepth_f1, cp = 0.01))
@@ -1091,47 +1093,36 @@ table(Predicted = predictions, Actual = testing_set$rating_category)
 # Accuracy
 
 accuracy <- sum(predictions == testing_set$rating_category) / nrow(testing_set)
-accuracy #0.7811
+accuracy #0.66.8%
 
 #recall and precision
 
 # Confusion matrix values
-TP <- 1121  # True Positives: "high" predicted as "high"
-FP <- 338  # False Positives: "low" predicted as "high"
-FN <- 273  # False Negatives: "high" predicted as "low" 
+TP <- 902  # True Positives: "high" predicted as "high"
+FP <- 415  # False Positives: "low" predicted as "high"
+FN <- 482  # False Negatives: "high" predicted as "low" 
 
 # Calculate Precision
 
 Precision <- TP / (TP + FP)
-Precision #0.7872
+Precision #0.6848
 # Calculate Recall
 
 Recall <- TP / (TP + FN)
-Recall #0.7773
+Recall #0.6517
 # Calculate F1 Score
 
 F1_Score <- 2 * (Precision * Recall) / (Precision + Recall)
-F1_Score #0.7801
+F1_Score #0.6679
 
 #out of curiosity we will test the model using a 70/30 split 
 
 #splitting the data set into training and testing sets 
 
 set.seed(123) # Ensure reproducibility 
-training_indices <- createDataPartition(movies_cleaned$rating_category, p = 0.7, list = FALSE)
-training_set2 <- movies_cleaned[training_indices, ] 
-testing_set2 <- movies_cleaned[-training_indices, ]
-
-#check for missing values in the data set
-
-sum(is.na(training_set2)) #no missing values in the training set
-sum(is.na(testing_set2)) #no missing values in the testing set
-
-#remove the missing value from the testing set 
-testing_set2 <- testing_set2[complete.cases(testing_set2), ] #remove the missing value from the testing set
-
-
-
+training_indices <- createDataPartition(movies_clean_scaled$rating_category, p = 0.7, list = FALSE)
+training_set2 <- movies_clean_scaled[training_indices, ] 
+testing_set2 <- movies_clean_scaled[-training_indices, ]
 
 # Set up cross-validation controls
 control <- trainControl(method="cv", number=3, savePredictions = TRUE, search = "grid")
@@ -1147,7 +1138,7 @@ results <- data.frame(maxdepth = integer(),
 # Loop over desired maxdepth values
 for (maxdepth in 1:7) {
   # Train the model with the current maxdepth setting using Cross Validation
-  fit <- train(rating_category ~ . - release_year - tomatometer_rating - tomatometer_status,
+  fit <- train(rating_category ~ . - release_year - tomatometer_rating - audience_rating, 
                data = training_set2, 
                method = "rpart",
                trControl = control, 
@@ -1193,7 +1184,7 @@ best_maxdepth_f1 #print the best max depth for the model
 
 # representing the best max depth for the model based on your prior analysis
 
-best_fit_F1 <- rpart(rating_category ~ . - release_year - tomatometer_rating - tomatometer_status,
+best_fit_F1 <- rpart(rating_category ~ . - release_year - tomatometer_rating - audience_rating, 
                      data = training_set2, 
                      method = "class", 
                      control = rpart.control(maxdepth = best_maxdepth_f1, cp = 0.01))
@@ -1212,44 +1203,45 @@ table(Predicted = predictions, Actual = testing_set2$rating_category)
 
 # Accuracy
 
-accuracy <- sum(predictions == testing_set$rating_category) / nrow(testing_set)
-accuracy #0.7424
+accuracy <- sum(predictions == testing_set2$rating_category) / nrow(testing_set2)
+accuracy #0.6652
 
 
 
 # Confusion matrix values
-TP <- 1703  # True Positives: "high" predicted as "high"
-FP <- 515  # False Positives: "low" predicted as "high"
-FN <- 388  # False Negatives: "high" predicted as "low" 
+TP <- 1355  # True Positives: "high" predicted as "high"
+FP <- 638  # False Positives: "low" predicted as "high"
+FN <- 721  # False Negatives: "high" predicted as "low" 
 
 # Calculate Precision
 
 Precision <- TP / (TP + FP)
-Precision #0.7678
+Precision #0.6798
+
 # Calculate Recall #Preforms worse than the 80/20 split 
 
 Recall <- TP / (TP + FN)
-Recall #0.81
+Recall #0.6527
 # Calculate F1 Score # signifigant improvement over the 80/20 split
 
 F1_Score <- 2 * (Precision * Recall) / (Precision + Recall)
-F1_Score #0.7904 #slight improvement over the 80/20 split 
+F1_Score #0.6660 #slight improvement over the 80/20 split 
 
 
 # Metrics for the first model (80/20 split)
 metrics_80_20 <- data.frame(
   Split = "80/20",
-  F1_Score = 0.7801,
-  Precision = 0.7872,
-  Recall = 0.7773
+  F1_Score = 0.6679,
+  Precision = 0.6848,
+  Recall = 0.6517
 )
 
 # Metrics for the second model (70/30 split)
 metrics_70_30 <- data.frame(
   Split = "70/30",
-  F1_Score = 0.7904,
-  Precision = 0.7678,
-  Recall = 0.81
+  F1_Score = 0.6660,
+  Precision = 0.6798,
+  Recall = 0.6527
 )
 
 # Combine the data
@@ -1260,7 +1252,6 @@ library(reshape2)
 metrics_melted <- melt(metrics_combined, id.vars = "Split")
 
 # Plotting
-# Enhanced plotting
 ggplot(metrics_melted, aes(x = Split, y = value, fill = variable)) +
   geom_bar(stat = "identity", position = position_dodge(width = 0.8), width = 0.7) +
   geom_text(aes(label = sprintf("%.2f", value)), vjust = -0.5, position = position_dodge(width = 0.8), size = 3.5) +
@@ -1283,6 +1274,4 @@ ggplot(metrics_melted, aes(x = Split, y = value, fill = variable)) +
   guides(fill = guide_legend(title.position = "top", title.hjust = 0.5))
 
 
-#Conclusion: CART does not differ signifigantly in prediction power of the logit model when we train the model using a 70/30 improvement 
-#we see a minor improvement in the F1 score but this comes at the expense of a lower precision score. 
 
