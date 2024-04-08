@@ -970,7 +970,7 @@ accuracy #0.49, worse than random guessing
 #no change in accuracy between the models will proceed with glm_model4 for now 
 
 
-
+#### CODE FROM HERE DOWN STILL NEEDS EDITS ###
 
 #cross-validation of the model 
 
