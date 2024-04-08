@@ -798,6 +798,10 @@ plot(lm_model8) #R^2 = 0.5147
 
 AIC(lm_model3, lm_model4, lm_model5, lm_model6, lm_model7, lm_model8) #check the AIC values to determine the best model
 
+stargazer(lm_model6, lm_model7, lm_model8, type = "text")
+
+
+
 #model 8 has the lowest AIC value so we will proceed with this model. 
 
 #cross validation of the model 
@@ -926,10 +930,13 @@ AIC(glm_model1, glm_model2, glm_model3, glm_model4, glm_model5) #AIC shows the s
 
 #compare the variables included in glm_model3 to those in glm_model4 
 
-summary(glm_model3) #glm_model3 includes all variables  
-summary(glm_model4) #interestingly glm_model 4 removes a significant number of variables 
+summary(glm_model4) #glm_model4 includes all variables  
+summary(glm_model5) #stepwise removes a couple variables  
 
-#glm 4 has a lower AIC value so we will proceed with this model 
+stargazer(glm_model2, glm_model3, glm_model4, type = "text") #print the model summary statistics
+
+
+#glm 5 has a lower AIC value so we will proceed with this model 
 
 predictions_prob <- predict(glm_model5, newdata = testing_set, type = "response")
 predictions_class <- ifelse(predictions_prob > 0.5, "high", "low")
@@ -1388,7 +1395,7 @@ importance_df$Variable <- rownames(importance_df)
 ggplot(importance_df, aes(x=reorder(Variable, high), y=high, fill=high)) +
   geom_bar(stat="identity") +
   coord_flip() +  # Make the plot horizontal
-  scale_fill_gradient(low="skyblue", high="blue") +  # Gradient color for bars
+  scale_fill_gradient(low= "darkseagreen", high="red") +  # Gradient color for bars
   labs(x="Variables",
        y="Importance for 'High' Rating",
        title="Variable Importance for 'High' Rating from Random Forest",
@@ -1404,20 +1411,23 @@ ggplot(importance_df, aes(x=reorder(Variable, high), y=high, fill=high)) +
 
 #chart output shows that age_at_streaming, actor_popularity and audeince_count are the most 
 #important predictors of a movie that acheives a "high" rating   
-#previous CART model shows that movies 
+
+#previous CART model shows that movies that are in theatres longer, have more popular actors 
+#and have longer runtimes are more likely to be high rated 
+
+#FOR EXACT INTERPRETATION NEED TO UNDO THE SCALING (zscore standardization) by taking the log mean from the 
+#movies_cleaned data set
 
 
 
+####### STILL LEFT TO DO ##############################################
 
+#1. interpret the results of the models by undoing the scaling 
+#2. Redo all the models with a 70/30 split to see if the results change 
+#3. Add additional comments to the code to explain the steps 
+#4. Final code quality and run check 
 
-
-
-
-
-
-
-
-
+##########################################################################
 
 
 #out of curiosity we will test the model using a 70/30 split 
