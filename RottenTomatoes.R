@@ -16,7 +16,9 @@ install.packages("fastDummies")
 install.packages("glmnet") 
 install.packages("rpart") 
 install.packages("rpart.plot")
-install.packages("pscl")
+install.packages("pscl") 
+install.packages("rBayesianOptimization") 
+install.packages("randomForest")
 
 #loading the data and packages
 
@@ -35,7 +37,9 @@ library(caret)
 library(rpart)
 library(rpart.plot)
 library(pscl)
-library(psych)
+library(psych) 
+library(rBayesianOptimization)
+library(randomForest)
 
 drive_auth() #connecting to Google Drive API for data download
 file_id <- #removed for github
@@ -976,9 +980,6 @@ accuracy #0.49, worse than random guessing
 summary(glm_model5) 
 
 
-#### EVERYTHING HERE DOWN NEEDS EDIT #### 
-
-
 #cross-validation of the model 
 train_control <- trainControl(method = "cv", number = 10)  # Set up the cross-validation method 
 glm_model5_cv <- train(
@@ -991,8 +992,6 @@ glm_model5_cv <- train(
   trControl = train_control
 )
 glm_model5_cv$results  # Display the results of the cross-validation
-
-
 
 
 # Fitting a CART model to the training data
@@ -1113,7 +1112,313 @@ Recall #0.6517
 # Calculate F1 Score
 
 F1_Score <- 2 * (Precision * Recall) / (Precision + Recall)
-F1_Score #0.6679
+F1_Score #0.6679 
+
+#This F1 score is significantly better than the logistic regression model but still not great. We will 
+#do further hyperparameter tuning to see if we can improve the model first starting with adjusting CP 
+
+# Update cross-validation controls to 10 folds 
+control <- trainControl(method="cv", number=10, savePredictions=TRUE)
+
+# Define a grid of hyperparameters to test
+# Adjust the sequence of CP values as necessary based on preliminary results or domain knowledge
+cp_values <- seq(0.01, 0.1, by=0.01)
+max_depth_values <- 1:7
+
+# Initialize an empty data frame to store results
+results <- expand.grid(maxdepth=max_depth_values, cp=cp_values, Accuracy=NA_real_, F1_Score=NA_real_, Precision=NA_real_, Recall=NA_real_)
+
+for (maxdepth in max_depth_values) {
+  for (cp in cp_values) {
+    fit <- train(rating_category ~ . - release_year - tomatometer_rating - audience_rating, 
+                 data=training_set, 
+                 method="rpart", 
+                 trControl=control, 
+                 tuneGrid=data.frame(cp=cp),
+                 control=rpart.control(maxdepth=maxdepth, minsplit=1))
+    
+    predictions <- predict(fit, training_set, type="raw")
+    cm <- confusionMatrix(predictions, training_set$rating_category)
+    
+    precision <- as.numeric(cm$byClass['Pos Pred Value'])
+    recall <- as.numeric(cm$byClass['Sensitivity'])
+    f1_score <- 2 * ((precision * recall) / (precision + recall))
+    
+    # Update the results dataframe
+    results[results$maxdepth == maxdepth & results$cp == cp, ] <- c(maxdepth, cp, max(fit$results$Accuracy), f1_score, precision, recall)
+  }
+}
+
+# Plotting the results
+data_long <- melt(results, id.vars=c("maxdepth", "cp"), variable.name="Metric", value.name="Value")
+
+
+data_long$cp <- as.factor(data_long$cp)
+
+ggplot(data_long, aes(x=factor(maxdepth), y=Value, fill=cp)) + 
+  geom_bar(stat="identity", position="dodge") + 
+  facet_wrap(~ Metric, scales="free_y") +
+  ggtitle("Model Performance by Max Depth and CP") +
+  xlab("Max Depth") +
+  ylab("Score") +
+  theme_minimal() +
+  scale_fill_viridis_d(name="CP Value") 
+# Identifying the best combination based on your metric of choice, e.g., F1 Score
+best_combination <- results[which.max(results$F1_Score),]
+
+# Training the final model with the best combination
+best_fit <- rpart(rating_category ~ . - release_year - tomatometer_rating - audience_rating, 
+                  data=training_set, 
+                  method="class", 
+                  control=rpart.control(maxdepth=best_combination$maxdepth, cp=best_combination$cp))
+
+# Plotting the final model
+rpart.plot(best_fit, main="Optimized CART Model for Movie Ratings", extra=102, under=TRUE, faclen=0)
+
+#test on the test set 
+
+predictions <- predict(best_fit, newdata = testing_set, type = "class") 
+
+# Confusion Matrix
+
+table(Predicted = predictions, Actual = testing_set$rating_category)
+
+# Accuracy
+
+accuracy <- sum(predictions == testing_set$rating_category) / nrow(testing_set)
+accuracy #0.6685
+
+#recall and precision
+
+# Confusion matrix values
+TP <- 902  # True Positives: "high" predicted as "high"
+FP <- 415  # False Positives: "low" predicted as "high"
+FN <- 482  # False Negatives: "high" predicted as "low" 
+
+# Calculate Precision
+
+Precision <- TP / (TP + FP)
+Precision #0.6848
+# Calculate Recall
+
+Recall <- TP / (TP + FN)
+Recall #0.6517
+# Calculate F1 Score
+
+F1_Score <- 2 * (Precision * Recall) / (Precision + Recall)
+F1_Score #0.6679 
+
+#the model performs the exact same as the previous model. We will now try to use bayesian optimization to tune the hyperparameters 
+
+# Define the objective function to optimize
+objective_function <- function(cp, maxdepth) {
+  # Convert maxdepth to integer as it must be an integer
+  maxdepth <- as.integer(maxdepth)
+  
+  # Train the model using the specified parameters
+  fit <- train(
+    rating_category ~ . - release_year - tomatometer_rating - audience_rating,
+    data = training_set,
+    method = "rpart",
+    trControl = trainControl(method = "cv", number = 5, savePredictions = "final", classProbs = TRUE),
+    tuneGrid = expand.grid(cp = cp),
+    control = rpart.control(maxdepth = maxdepth, minsplit = 1)
+  )
+  
+  # Return the model's performance metric
+  # Here we use Accuracy. Change this if you prefer another metric like ROC, etc.
+  return(list(Score = max(fit$results$Accuracy)))
+}
+
+# Define the bounds for the hyperparameters
+bounds <- list(cp = c(0.001, 0.1), maxdepth = c(1L, 10L))
+
+# Run Bayesian optimization
+bayes_opt_results <- BayesianOptimization(
+  FUN = objective_function,
+  bounds = bounds,
+  init_points = 5, # Number of randomly chosen points to sample the function before modeling the bayesian optimization
+  n_iter = 20,     # Number of iterations to perform
+  acq = "ei",      # Acquisition function
+  verbose = TRUE
+)
+
+# Review the best parameters found
+print(bayes_opt_results$Best_Par)
+
+str(bayes_opt_results)
+
+# Accessing the best parameters
+best_cp <- bayes_opt_results$Best_Par["cp"]
+best_maxdepth <- as.integer(bayes_opt_results$Best_Par["maxdepth"])
+
+# Training the final model with the optimized parameters
+final_model <- rpart(
+  rating_category ~ . - release_year - tomatometer_rating - audience_rating,
+  data = training_set,
+  method = "class",
+  control = rpart.control(cp = best_cp, maxdepth = best_maxdepth)
+)
+
+# Plot the final model
+rpart.plot(final_model, main="Optimized CART Model for Movie Ratings", extra=102, under=TRUE, faclen=0) 
+
+
+
+#test on the train set 
+
+predictions <- predict(final_model, newdata = training_set, type = "class") 
+
+# Confusion Matrix
+
+table(Predicted = predictions, Actual = training_set$rating_category)
+
+# Accuracy
+
+accuracy <- sum(predictions == training_set$rating_category) / nrow(training_set)
+accuracy #0.7224
+
+#recall and precision
+
+# Confusion matrix values
+TP <- 3914  # True Positives: "high" predicted as "high"
+FP <- 1383  # False Positives: "low" predicted as "high"
+FN <- 1622 # False Negatives: "high" predicted as "low" 
+
+# Calculate Precision
+
+Precision <- TP / (TP + FP)
+Precision #0.7389
+# Calculate Recall
+
+Recall <- TP / (TP + FN)
+Recall #0.7070
+# Calculate F1 Score
+
+F1_Score <- 2 * (Precision * Recall) / (Precision + Recall)
+F1_Score #0.7226
+
+#test on the test set 
+ 
+predictions <- predict(final_model, newdata = testing_set, type = "class") 
+
+# Confusion Matrix 
+
+table(Predicted = predictions, Actual = testing_set$rating_category) 
+
+# Accuracy
+
+accuracy <- sum(predictions == testing_set$rating_category) / nrow(testing_set) 
+accuracy #0.6995
+
+#recall and precision 
+
+# Confusion matrix values 
+
+TP <- 937  # True Positives: "high" predicted as "high" 
+FP <- 366  # False Positives: "low" predicted as "high"
+FN <- 447 # False Negatives: "high" predicted as "low" 
+
+# Calculate Precision 
+
+Precision <- TP / (TP + FP)  
+Precision #0.7191
+
+# Calculate Recall 
+
+Recall <- TP / (TP + FN)
+Recall #0.6770
+# Calculate F1 Score
+
+F1_Score <- 2 * (Precision * Recall) / (Precision + Recall)
+F1_Score #0.6974
+
+#while this model has a small improvement over the previous model it is significantly more complicated. 
+#in the interest of model robustness are interpretability we will proceed with the previous model. 
+
+# Set up cross-validation controls
+rfControl <- trainControl(method="cv", number=10, savePredictions=TRUE)
+
+# Train the Random Forest model
+rfModel <- train(
+  rating_category ~ . - release_year - tomatometer_rating - audience_rating,
+  data=training_set,
+  method="rf",
+  trControl=rfControl,
+  ntree=70, #sets the number of trees to 70 (Oshiro, Thais & Perez, Pedro & Baranauskas, José. (2012). How Many Trees in a Random Forest?. Lecture notes in computer science. 7376. 10.1007/978-3-642-31537-4_13) 
+  importance=TRUE  #argument gets the variable importance
+)
+
+# Summarize the model
+print(rfModel)
+
+# Check variable importance
+importance(rfModel$finalModel)
+
+# Make predictions on the test set
+rfPredictions <- predict(rfModel, newdata=testing_set)
+
+# Confusion Matrix
+rfCM <- confusionMatrix(rfPredictions, testing_set$rating_category)
+print(rfCM)
+
+# Overall Accuracy
+rfAccuracy <- rfCM$overall['Accuracy']
+print(rfAccuracy) #0.7224
+
+# Precision, Recall, and F1 Score
+rfPrecision <- rfCM$byClass['Pos Pred Value']
+rfRecall <- rfCM$byClass['Sensitivity']
+rfF1Score <- 2 * (rfPrecision * rfRecall) / (rfPrecision + rfRecall)
+print(rfF1Score) #0.7235 
+
+
+#the random forest model shows a marginal improvement over the CART model but again make
+ 
+var_importance <- varImp(rfModel)$importance
+
+# Convert to data frame for plotting
+importance_df <- as.data.frame(var_importance)
+importance_df$Variable <- rownames(importance_df)
+
+# Plot variable importance using ggplot2
+# Assuming 'importance_df' is already created and contains the 'high' variable importance
+
+# Enhanced plotting code
+ggplot(importance_df, aes(x=reorder(Variable, high), y=high, fill=high)) +
+  geom_bar(stat="identity") +
+  coord_flip() +  # Make the plot horizontal
+  scale_fill_gradient(low="skyblue", high="blue") +  # Gradient color for bars
+  labs(x="Variables",
+       y="Importance for 'High' Rating",
+       title="Variable Importance for 'High' Rating from Random Forest",
+       fill="Importance") +
+  theme_minimal() +  # Minimalistic theme
+  theme(legend.position="none",  # Remove the legend to reduce clutter
+        axis.title.x=element_text(size=12, face="bold"),
+        axis.title.y=element_text(size=12, face="bold"),
+        axis.text.x=element_text(size=10),
+        axis.text.y=element_text(size=10),
+        plot.title=element_text(size=14, face="bold", hjust=0.5))  # Center the plot title
+
+
+#chart output shows that age_at_streaming, actor_popularity and audeince_count are the most 
+#important predictors of a movie that acheives a "high" rating   
+#previous CART model shows that movies 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #out of curiosity we will test the model using a 70/30 split 
 
