@@ -889,22 +889,32 @@ interaction_terms <- " + release_year:season_Winter + release_year:season_Summer
 full_formula_str <- paste(full_formula_str, interaction_terms, sep="")
 full_formula <- as.formula(full_formula_str)
 glm_model3 <- glm(full_formula, data=training_set, family = "binomial")
-summary(glm_model3) 
+summary(glm_model3)  
+
+#dummy variable issue in this model so we will remove one category from dummy variables and rerun the model
+base_formula <- "rating_category ~ runtime + poly(audience_rating, 2) + audience_count + age_at_streaming + num_authors + num_directors + actor_popularity + content_rating + poly(release_year, 2) + season_Winter + season_Summer + season_Fall"
+full_formula_str <- paste(base_formula, paste(genre_vars, collapse=" + "), sep=" + ")
+interaction_terms <- " + release_year:season_Winter + release_year:season_Summer + release_year:season_Fall"
+full_formula_str <- paste(full_formula_str, interaction_terms, sep="")
+full_formula <- as.formula(full_formula_str)
+glm_model4 <- glm(full_formula, data=training_set, family = "binomial")
+summary(glm_model4)
 
 
 #running a stepwise regression to see if we can improve the model 
 
-glm_model4 <- step(glm_model3, direction = "both", trace = 1) #run the stepwise regression model 
-summary(glm_model4) 
+glm_model5 <- step(glm_model4, direction = "both", trace = 1) #run the stepwise regression model 
+summary(glm_model5) 
 
 #evaluating the models 
 
 pR2(glm_model1)
 pR2(glm_model2)
 pR2(glm_model3) 
-pR2(glm_model4)
+pR2(glm_model4) 
+pR2(glm_model5)
 
-AIC(glm_model1, glm_model2, glm_model3, glm_model4) #AIC shows the stepwise model is the best model  
+AIC(glm_model1, glm_model2, glm_model3, glm_model4, glm_model5) #AIC shows the stepwise model is the best model  
 
 #compare the variables included in glm_model3 to those in glm_model4 
 
@@ -913,7 +923,7 @@ summary(glm_model4) #interestingly glm_model 4 removes a significant number of v
 
 #glm 4 has a lower AIC value so we will proceed with this model 
 
-predictions_prob <- predict(glm_model4, newdata = testing_set, type = "response")
+predictions_prob <- predict(glm_model5, newdata = testing_set, type = "response")
 predictions_class <- ifelse(predictions_prob > 0.5, "high", "low")
 
 # Confusion Matrix
@@ -922,7 +932,6 @@ table(Predicted = predictions_class, Actual = testing_set$rating_category)
 # Accuracy
 accuracy <- sum(predictions_class == testing_set$rating_category) / nrow(testing_set)
 accuracy #0.49, worse than random guessing
-
 
 #recall and precision 
 
@@ -943,7 +952,25 @@ Recall
 # Calculate F1 Score
 F1_Score <- 2 * (Precision * Recall) / (Precision + Recall) 
 F1_Score 
-#F1 score is 0.4918 
+#F1 score is 0.4918  
+
+
+#generally a poor model, out of curiosity we will test glm_model4 to see if it performs better 
+
+predictions_prob <- predict(glm_model4, newdata = testing_set, type = "response") 
+predictions_class <- ifelse(predictions_prob > 0.5, "high", "low") 
+
+# Confusion Matrix 
+table(Predicted = predictions_class, Actual = testing_set$rating_category) 
+
+# Accuracy 
+accuracy <- sum(predictions_class == testing_set$rating_category) / nrow(testing_set) 
+accuracy #0.49, worse than random guessing 
+
+#no change in accuracy between the models will proceed with glm_model4 for now 
+
+
+
 
 #cross-validation of the model 
 
