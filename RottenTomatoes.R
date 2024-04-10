@@ -598,7 +598,7 @@ testing_set <- OLS_set[-training_indices, ]
 #run the first kitchen sink model to see the effect of all variables on the tomatometer rating 
 
 lm_modelKS <- lm(tomatometer_rating ~ ., data = training_set)
-summary(lm_modelKS) #R2 = 0.8099
+summary(lm_modelKS) #R2 = 0.8109
 
 #check for multicollinearity 
 vif(lm_modelKS) #check the VIF to ensure no multicollinearity
@@ -626,7 +626,7 @@ threshold <- 4/(n-k-1) # Set the threshold for Cook's distance of 4 divided by t
 # Identify the indices of the outliers
 outliers <- which(cooks_d > threshold)
 print(outliers) 
-length(outliers) - #430 outliers identified that exceed the threshold 
+length(outliers) #430 outliers identified that exceed the threshold 
 
 #remove the outliers from the data set 
 movies_cleaned <- movies_cleaned[-outliers, ] #remove the extreme outliers
@@ -637,7 +637,7 @@ training_set <- training_set[-outliers, ] #remove the extreme outliers
 #rerun the model 
 lm_model2 <- lm(tomatometer_rating ~ . - release_year, data = training_set)
 summary(lm_model2) 
-plot(lm_model2)  
+plot(lm_model2)  #R^2 = 0.8362
 
 #still has outlier but will continue with this model for now and adjust later if necessary
 
@@ -652,7 +652,7 @@ training_set <- training_set %>% select(-tomatometer_status) #drop the tomatomet
 #rerun the model 
 lm_model3 <- lm(tomatometer_rating ~ . - release_year, data = training_set) 
 summary(lm_model3) 
-plot(lm_model3) #Adjusted R^2 = 0.5459
+plot(lm_model3) #Adjusted R^2 = 0.5472
 
 #model prediction power is lower but this is expected. However, we see some improvement in the residuals 
 #we will continue with this model for now and adjust later if necessary. 
@@ -681,7 +681,7 @@ training_set$num_actors <- log1p(training_set$num_actors) #apply a log transform
 #age at streaming 
 
 #check for zeros or negative values in the age at streaming column 
-sum(movies_cleaned$age_at_streaming <= 0) #539 zeros so will have to add constants 
+sum(movies_cleaned$age_at_streaming <= 0) #590 zeros so will have to add constants 
 
 #find the lowest value in the age at streaming column and add that a constant to avoid log(0) 
 
@@ -700,7 +700,7 @@ training_set$age_at_streaming <- log1p(training_set$age_at_streaming) #apply a l
 #rerun the model
 lm_model4 <- lm(tomatometer_rating ~ . - release_year, data = training_set)
 summary(lm_model4)
-plot(lm_model4) #Adjusted R^2 = 0.5451   
+plot(lm_model4) #Adjusted R^2 = 0.5464
  
 #small improvement in the residuals but we will now scale the data set to improve the model 
 
@@ -733,7 +733,7 @@ testing_set[numeric_columns] <- scale(testing_set[numeric_columns], center = tra
 #rerun the model 
 lm_model5 <- lm(tomatometer_rating ~ . - release_year, data = training_set)
 summary(lm_model5) 
-plot(lm_model5) #Adjusted R^2 = 0.5451
+plot(lm_model5) #Adjusted R^2 = 0.5464
 
 #step 4 - addressing non-linearity 
 
@@ -754,7 +754,7 @@ full_formula_str <- paste(full_formula_str, interaction_terms, sep="")
 
 full_formula <- as.formula(full_formula_str)
 lm_model6 <- lm(full_formula, data=training_set)
-summary(lm_model6) #adjusted R2 = 0.5522
+summary(lm_model6) #adjusted R2 = 0.5537
 plot(lm_model6)
 
 #adding polynomial terms to account for non-linearity in year and audience rating
@@ -765,7 +765,7 @@ interaction_terms <- " + release_year:season_Winter + release_year:season_Summer
 full_formula_str <- paste(full_formula_str, interaction_terms, sep="")
 full_formula <- as.formula(full_formula_str)
 lm_model7 <- lm(full_formula, data=training_set)
-summary(lm_model7) #R2 0.5529
+summary(lm_model7) #R2 0.5544
 plot(lm_model7)
 
 #very little change in linearity but small model improvement, will proceed to stepwise 
@@ -774,10 +774,10 @@ plot(lm_model7)
 
 lm_model8<- step(lm_model7, direction = "both", trace = 1) #run the stepwise regression model
 summary(lm_model8)
-plot(lm_model8) #R^2 = 0.553
+plot(lm_model8) #R^2 = 0.5546
 
 
-#stepwise does not remove any variables so we will proceed with the model as is 
+#stepwise removes some interaction effects, genres_comedy, seasons and runtime 
 
 AIC(lm_model3, lm_model4, lm_model5, lm_model6, lm_model7, lm_model8) #check the AIC values to determine the best model
 
@@ -838,10 +838,10 @@ stargazer(lm_model8, type = "text") #print the model summary statistics
 ### Step 2: Binary encoding into high and low to run logistic regression and CART models  
 
 #calculate the median to split the data set into high and low ratings 
-median(movies_clean_scaled$tomatometer_rating) #median is 0.1465369
+median(movies_clean_scaled$tomatometer_rating) #median is 0.1460244
 
 #calculate the median to split the data set into high and low ratings 
-movies_clean_scaled$rating_category <- ifelse(movies_clean_scaled$tomatometer_rating > 0.1465369, "high", "low") # Assign "high" to movies with a rating above the median (scaled)
+movies_clean_scaled$rating_category <- ifelse(movies_clean_scaled$tomatometer_rating > 0.1460244, "high", "low") # Assign "high" to movies with a rating above the median (scaled)
 
 #convert the rating category to a factor 
 movies_clean_scaled$rating_category <- as.factor(movies_clean_scaled$rating_category) # Convert to factor for logistic regression
@@ -920,9 +920,9 @@ AIC(glm_model1, glm_model2, glm_model3, glm_model4, glm_model5) #AIC shows the s
 #compare the variables included in glm_model3 to those in glm_model4 
 
 summary(glm_model4) #glm_model4 includes all variables  
-summary(glm_model5) #stepwise removes a couple variables  
+summary(glm_model5) #stepwise removes genres_Kids...Family, genres_comedy, Genres_Classic, num_directors, runtime
 
-stargazer(glm_model2, glm_model3, glm_model4, type = "text") #print the model summary statistics
+stargazer(glm_model4, glm_model5, type = "text") #print the model summary statistics
 
 
 #glm 5 has a lower AIC value so we will proceed with this model 
@@ -935,59 +935,30 @@ table(Predicted = predictions_class, Actual = testing_set$rating_category)
 
 # Accuracy
 accuracy <- sum(predictions_class == testing_set$rating_category) / nrow(testing_set)
-accuracy #0.49, worse than random guessing
+accuracy #0.2175 very bad model 
 
 #recall and precision 
 
 # Confusion matrix values
-TP <- 664  # True Positives: "high" predicted as "high"
-FP <- 684 # False Positives: "low" predicted as "high"
-FN <- 688 # False Negatives: "high" predicted as "low"
+TP <- 305  # True Positives: "high" predicted as "high"
+FP <- 1040 # False Positives: "low" predicted as "high"
+FN <- 1075 # False Negatives: "high" predicted as "low"
 
 # Calculate Precision
 Precision <- TP / (TP + FP)  
-Precision #0.4925 
+Precision #0.2267
 
 # Calculate Recall
 Recall <- TP / (TP + FN) 
 Recall 
-#recall is 0.4911
+#recall is 0.2210
 
 # Calculate F1 Score
 F1_Score <- 2 * (Precision * Recall) / (Precision + Recall) 
 F1_Score 
-#F1 score is 0.4918  
+#F1 score is 0.2238
 
-
-#generally a poor model, out of curiosity we will test glm_model4 to see if it performs better 
-
-predictions_prob <- predict(glm_model4, newdata = testing_set, type = "response") 
-predictions_class <- ifelse(predictions_prob > 0.5, "high", "low") 
-
-# Confusion Matrix 
-table(Predicted = predictions_class, Actual = testing_set$rating_category) 
-
-# Accuracy 
-accuracy <- sum(predictions_class == testing_set$rating_category) / nrow(testing_set) 
-accuracy #0.49, worse than random guessing 
-
-#no change in accuracy between the models will proceed with glm_model5 for now  
-
-summary(glm_model5) 
-
-
-#cross-validation of the model 
-train_control <- trainControl(method = "cv", number = 10)  # Set up the cross-validation method 
-glm_model5_cv <- train(
-  rating_category ~ audience_count + season_Winter + season_Fall +
-    genres_Art.House...International + genres_Science.Fiction...Fantasy +
-    season_Winter:release_year,
-  data = training_set,
-  method = "glm",
-  family = "binomial",
-  trControl = train_control
-)
-glm_model5_cv$results  # Display the results of the cross-validation
+#LOGIT model performs extremely poorly we will move on to CART to see if we can generate better predictions
 
 
 # Fitting a CART model to the training data
@@ -1005,7 +976,7 @@ rpart.plot(cart_model, main="CART Model for Movie Ratings", extra=102, under=TRU
 
 # Set up cross-validation controls
 control <- trainControl(method="cv", number=3, savePredictions = TRUE, search = "grid")
-#TODO: change the number of folds from 3 to 5 and 10  and see how results change
+
 
 # Initialize an empty data frame to store results
 results <- data.frame(maxdepth = integer(), 
@@ -1021,8 +992,8 @@ for (maxdepth in 1:7) {
                data = training_set, 
                method = "rpart",
                trControl = control, 
-               tuneGrid = expand.grid(cp = 0.01), # cp is set to a single value as an example
-               control = rpart.control(maxdepth = maxdepth, cp = 0.01)) # Adjust cp as needed
+               tuneGrid = expand.grid(cp = 0.01), 
+               control = rpart.control(maxdepth = maxdepth, cp = 0.01)) # 
   
   # Predict on the testing set to get the confusion matrix
   predictions <- predict(fit, training_set, type = "raw")
@@ -1042,8 +1013,6 @@ for (maxdepth in 1:7) {
                               Precision= precision,
                               Recall = recall))
 }
-
-
 
 
 # Plot F1_Score vs. Prediction Performance Metrics
@@ -1088,27 +1057,27 @@ table(Predicted = predictions, Actual = testing_set$rating_category)
 # Accuracy
 
 accuracy <- sum(predictions == testing_set$rating_category) / nrow(testing_set)
-accuracy #0.66.8%
+accuracy #0.66.37%
 
 #recall and precision
 
 # Confusion matrix values
-TP <- 902  # True Positives: "high" predicted as "high"
+TP <- 886  # True Positives: "high" predicted as "high"
 FP <- 415  # False Positives: "low" predicted as "high"
-FN <- 482  # False Negatives: "high" predicted as "low" 
+FN <- 494  # False Negatives: "high" predicted as "low" 
 
 # Calculate Precision
 
 Precision <- TP / (TP + FP)
-Precision #0.6848
+Precision #0.6810
 # Calculate Recall
 
 Recall <- TP / (TP + FN)
-Recall #0.6517
+Recall #0.6420
 # Calculate F1 Score
 
 F1_Score <- 2 * (Precision * Recall) / (Precision + Recall)
-F1_Score #0.6679 
+F1_Score #0.6609
 
 #This F1 score is significantly better than the logistic regression model but still not great. We will 
 #do further hyperparameter tuning to see if we can improve the model first starting with adjusting CP 
@@ -1187,9 +1156,9 @@ accuracy #0.6685
 #recall and precision
 
 # Confusion matrix values
-TP <- 902  # True Positives: "high" predicted as "high"
+TP <- 886 # True Positives: "high" predicted as "high"
 FP <- 415  # False Positives: "low" predicted as "high"
-FN <- 482  # False Negatives: "high" predicted as "low" 
+FN <- 494  # False Negatives: "high" predicted as "low" 
 
 # Calculate Precision
 
@@ -1198,7 +1167,7 @@ Precision #0.6848
 # Calculate Recall
 
 Recall <- TP / (TP + FN)
-Recall #0.6517
+Recall #0.6420
 # Calculate F1 Score
 
 F1_Score <- 2 * (Precision * Recall) / (Precision + Recall)
@@ -1257,7 +1226,7 @@ final_model <- rpart(
 )
 
 # Plot the final model
-rpart.plot(final_model, main="Optimized CART Model for Movie Ratings", extra=102, under=TRUE, faclen=0) 
+rpart.plot(final_model, main="Bayes Optimized CART Model for Movie Ratings", extra=102, under=TRUE, faclen=0) 
 
 
 
@@ -1277,22 +1246,22 @@ accuracy #0.7224
 #recall and precision
 
 # Confusion matrix values
-TP <- 3914  # True Positives: "high" predicted as "high"
-FP <- 1383  # False Positives: "low" predicted as "high"
-FN <- 1622 # False Negatives: "high" predicted as "low" 
+TP <- 3816  # True Positives: "high" predicted as "high"
+FP <- 1318  # False Positives: "low" predicted as "high"
+FN <- 1662 # False Negatives: "high" predicted as "low" 
 
 # Calculate Precision
 
 Precision <- TP / (TP + FP)
-Precision #0.7389
+Precision #0.7432
 # Calculate Recall
 
 Recall <- TP / (TP + FN)
-Recall #0.7070
+Recall #0.6978
 # Calculate F1 Score
 
 F1_Score <- 2 * (Precision * Recall) / (Precision + Recall)
-F1_Score #0.7226
+F1_Score #0.7191
 
 #test on the test set 
  
@@ -1305,29 +1274,29 @@ table(Predicted = predictions, Actual = testing_set$rating_category)
 # Accuracy
 
 accuracy <- sum(predictions == testing_set$rating_category) / nrow(testing_set) 
-accuracy #0.6995
+accuracy #0.6637
 
 #recall and precision 
 
 # Confusion matrix values 
 
-TP <- 937  # True Positives: "high" predicted as "high" 
-FP <- 366  # False Positives: "low" predicted as "high"
-FN <- 447 # False Negatives: "high" predicted as "low" 
+TP <- 907 # True Positives: "high" predicted as "high" 
+FP <- 394  # False Positives: "low" predicted as "high"
+FN <- 473 # False Negatives: "high" predicted as "low" 
 
 # Calculate Precision 
 
 Precision <- TP / (TP + FP)  
-Precision #0.7191
+Precision #0.6971
 
 # Calculate Recall 
 
 Recall <- TP / (TP + FN)
-Recall #0.6770
+Recall #0.6572
 # Calculate F1 Score
 
 F1_Score <- 2 * (Precision * Recall) / (Precision + Recall)
-F1_Score #0.6974
+F1_Score #0.6766
 
 #while this model has a small improvement over the previous model it is significantly more complicated. 
 #in the interest of model robustness are interpretability we will proceed with the previous model. 
@@ -1360,16 +1329,16 @@ print(rfCM)
 
 # Overall Accuracy
 rfAccuracy <- rfCM$overall['Accuracy']
-print(rfAccuracy) #0.7224
+print(rfAccuracy) #0.7132
 
 # Precision, Recall, and F1 Score
 rfPrecision <- rfCM$byClass['Pos Pred Value']
 rfRecall <- rfCM$byClass['Sensitivity']
 rfF1Score <- 2 * (rfPrecision * rfRecall) / (rfPrecision + rfRecall)
-print(rfF1Score) #0.7235 
+print(rfF1Score) #0.7155
 
 
-#the random forest model shows a marginal improvement over the CART model but again make
+#the random forest model shows a marginal improvement over the CART model 
  
 var_importance <- varImp(rfModel)$importance
 
@@ -1378,9 +1347,6 @@ importance_df <- as.data.frame(var_importance)
 importance_df$Variable <- rownames(importance_df)
 
 # Plot variable importance using ggplot2
-# Assuming 'importance_df' is already created and contains the 'high' variable importance
-
-# Enhanced plotting code
 ggplot(importance_df, aes(x=reorder(Variable, high), y=high, fill=high)) +
   geom_bar(stat="identity") +
   coord_flip() +  # Make the plot horizontal
@@ -1404,178 +1370,213 @@ ggplot(importance_df, aes(x=reorder(Variable, high), y=high, fill=high)) +
 #previous CART model shows that movies that are in theatres longer, have more popular actors 
 #and have longer runtimes are more likely to be high rated 
 
-#FOR EXACT INTERPRETATION NEED TO UNDO THE SCALING (zscore standardization) by taking the log mean from the 
-#movies_cleaned data set
 
 
 
-####### STILL LEFT TO DO ##############################################
+########70/30 Split to validate the models############
 
-#1. interpret the results of the models by undoing the scaling 
-#2. Redo all the models with a 70/30 split to see if the results change 
-#3. Add additional comments to the code to explain the steps 
-#4. Final code quality and run check 
+set.seed(123)  # For reproducibility
+splitIndex <- createDataPartition(movies_clean_scaled$rating_category, p = 0.7, list = FALSE)
+training_set_70 <- movies_clean_scaled[splitIndex, ]
+testing_set_30 <- movies_clean_scaled[-splitIndex, ]
 
-##########################################################################
+#set up cross validation controls 
 
+# Update cross-validation controls to 10 folds 
+control_70 <- trainControl(method="cv", number=10, savePredictions=TRUE)
 
-#out of curiosity we will test the model using a 70/30 split 
-
-#splitting the data set into training and testing sets 
-
-set.seed(123) # Ensure reproducibility 
-training_indices <- createDataPartition(movies_clean_scaled$rating_category, p = 0.7, list = FALSE)
-training_set2 <- movies_clean_scaled[training_indices, ] 
-testing_set2 <- movies_clean_scaled[-training_indices, ]
-
-# Set up cross-validation controls
-control <- trainControl(method="cv", number=3, savePredictions = TRUE, search = "grid")
-
+# Define a grid of hyperparameters to test
+# Adjust the sequence of CP values as necessary based on preliminary results or domain knowledge
+cp_values <- seq(0.01, 0.1, by=0.01)
+max_depth_values <- 1:7
 
 # Initialize an empty data frame to store results
-results <- data.frame(maxdepth = integer(), 
-                      Accuracy = numeric(), 
-                      F1_Score = numeric(), 
-                      Precision = numeric(),
-                      Recall=numeric())
+results <- expand.grid(maxdepth=max_depth_values, cp=cp_values, Accuracy=NA_real_, F1_Score=NA_real_, Precision=NA_real_, Recall=NA_real_)
 
-# Loop over desired maxdepth values
-for (maxdepth in 1:7) {
-  # Train the model with the current maxdepth setting using Cross Validation
-  fit <- train(rating_category ~ . - release_year - tomatometer_rating - audience_rating, 
-               data = training_set2, 
-               method = "rpart",
-               trControl = control, 
-               tuneGrid = expand.grid(cp = 0.01), # cp is set to a single value as an example
-               control = rpart.control(maxdepth = maxdepth, cp = 0.01)) # Adjust cp as needed
-  
-  # Predict on the testing set to get the confusion matrix
-  predictions <- predict(fit, training_set2, type = "raw")
-  cm <- confusionMatrix(predictions, training_set2$rating_category)
-  
-  # Calculate F1-score on test set
-  precision <- as.numeric(cm$byClass['Pos Pred Value'])
-  recall <- as.numeric(cm$byClass['Sensitivity'])
-  f1_score <- 2 * ((precision * recall) / (precision + recall))
-  
-  # Collect and store the results
-  accuracy <- as.numeric(max(fit$results$Accuracy))
-  results <- rbind(results, 
-                   data.frame(maxdepth = maxdepth, 
-                              Accuracy = accuracy, 
-                              F1_Score = f1_score,
-                              Precision= precision,
-                              Recall = recall))
+for (maxdepth in max_depth_values) {
+  for (cp in cp_values) {
+    fit <- train(rating_category ~ . - release_year - tomatometer_rating - audience_rating, 
+                 data=training_set_70, 
+                 method="rpart", 
+                 trControl=control, 
+                 tuneGrid=data.frame(cp=cp),
+                 control=rpart.control(maxdepth=maxdepth, minsplit=1))
+    
+    predictions <- predict(fit, training_set_70, type="raw")
+    cm <- confusionMatrix(predictions, training_set_70$rating_category)
+    
+    precision <- as.numeric(cm$byClass['Pos Pred Value'])
+    recall <- as.numeric(cm$byClass['Sensitivity'])
+    f1_score <- 2 * ((precision * recall) / (precision + recall))
+    
+    # Update the results dataframe
+    results[results$maxdepth == maxdepth & results$cp == cp, ] <- c(maxdepth, cp, max(fit$results$Accuracy), f1_score, precision, recall)
+  }
 }
 
-# Convert the data to a long format for plotting with ggplot2
-data_long <- reshape2::melt(results, 
-                            id.vars = "maxdepth", 
-                            variable.name = "Metric", 
-                            value.name = "Value")
+# Plotting the results
+data_long <- melt(results, id.vars=c("maxdepth", "cp"), variable.name="Metric", value.name="Value")
 
-# Plotting
-ggplot(data_long, aes(x = maxdepth, y = Value, color = Metric)) +
-  geom_line() + geom_point() +
-  scale_color_manual(values = c("Accuracy" = "blue", "F1_Score" = "red", "Precision" = "green", "Recall" = "black" )) +
-  ggtitle("Model Performance by Max Depth") +
+
+data_long$cp <- as.factor(data_long$cp)
+ggplot(data_long, aes(x=factor(maxdepth), y=Value, fill=cp)) + 
+  geom_bar(stat="identity", position="dodge") + 
+  facet_wrap(~ Metric, scales="free_y") +
+  ggtitle("Model Performance by Max Depth and CP") +
   xlab("Max Depth") +
   ylab("Score") +
-  theme_minimal() 
+  theme_minimal() +
+  scale_fill_viridis_d(name="CP Value") 
 
-best_maxdepth_f1 <- results$maxdepth[which.max(results$F1_Score)] 
-best_maxdepth_f1 #print the best max depth for the model
+# Identifying the best combination based on your metric of choice, e.g., F1 Score
+best_combination <- results[which.max(results$F1_Score),]
 
-# representing the best max depth for the model based on your prior analysis
+# Training the final model with the best combination
+best_fit <- rpart(rating_category ~ . - release_year - tomatometer_rating - audience_rating, 
+                  data=training_set_70, 
+                  method="class", 
+                  control=rpart.control(maxdepth=best_combination$maxdepth, cp=best_combination$cp))
 
-best_fit_F1 <- rpart(rating_category ~ . - release_year - tomatometer_rating - audience_rating, 
-                     data = training_set2, 
-                     method = "class", 
-                     control = rpart.control(maxdepth = best_maxdepth_f1, cp = 0.01))
-
-
-
-rpart.plot(best_fit_F1, main="CART Model for Movie Ratings", extra=102, under=TRUE, faclen=0) 
+# Plotting the final model
+rpart.plot(best_fit, main="Optimized CART Model for Movie Ratings", extra=102, under=TRUE, faclen=0)
 
 #test on the test set 
 
-predictions <- predict(best_fit_F1, newdata = testing_set2, type = "class") 
+predictions <- predict(best_fit, newdata = testing_set_30, type = "class") 
 
 # Confusion Matrix
 
-table(Predicted = predictions, Actual = testing_set2$rating_category)
+table(Predicted = predictions, Actual = testing_set_30$rating_category)
 
 # Accuracy
 
-accuracy <- sum(predictions == testing_set2$rating_category) / nrow(testing_set2)
-accuracy #0.6652
+accuracy <- sum(predictions == testing_set_30$rating_category) / nrow(testing_set_30)
+accuracy #0.6655
 
-
+#recall and precision
 
 # Confusion matrix values
-TP <- 1355  # True Positives: "high" predicted as "high"
-FP <- 638  # False Positives: "low" predicted as "high"
-FN <- 721  # False Negatives: "high" predicted as "low" 
+TP <- 1400 # True Positives: "high" predicted as "high"
+FP <- 686 # False Positives: "low" predicted as "high"
+FN <- 670  # False Negatives: "high" predicted as "low" 
 
 # Calculate Precision
 
 Precision <- TP / (TP + FP)
-Precision #0.6798
+Precision #0.6971
 
-# Calculate Recall #Preforms worse than the 80/20 split 
-
+# Calculate Recall
 Recall <- TP / (TP + FN)
-Recall #0.6527
-# Calculate F1 Score # signifigant improvement over the 80/20 split
+Recall #0.6572
+# Calculate F1 Score
 
 F1_Score <- 2 * (Precision * Recall) / (Precision + Recall)
-F1_Score #0.6660 #slight improvement over the 80/20 split 
+F1_Score #0.6766
+ 
+#Random Forest Models 
 
 
-# Metrics for the first model (80/20 split)
-metrics_80_20 <- data.frame(
-  Split = "80/20",
-  F1_Score = 0.6679,
-  Precision = 0.6848,
-  Recall = 0.6517
+# Set up cross-validation controls
+rfControl <- trainControl(method="cv", number=10, savePredictions=TRUE)
+
+# Train the Random Forest model
+rfModel <- train(
+  rating_category ~ . - release_year - tomatometer_rating - audience_rating,
+  data=training_set_70,
+  method="rf",
+  trControl=rfControl,
+  ntree=70, #sets the number of trees to 70 (Oshiro, Thais & Perez, Pedro & Baranauskas, José. (2012). How Many Trees in a Random Forest?. Lecture notes in computer science. 7376. 10.1007/978-3-642-31537-4_13) 
+  importance=TRUE  #argument gets the variable importance
 )
 
-# Metrics for the second model (70/30 split)
-metrics_70_30 <- data.frame(
-  Split = "70/30",
-  F1_Score = 0.6660,
-  Precision = 0.6798,
-  Recall = 0.6527
+# Summarize the model
+print(rfModel)
+
+# Check variable importance
+importance(rfModel$finalModel)
+
+# Make predictions on the test set
+rfPredictions <- predict(rfModel, newdata=testing_set_30)
+
+# Confusion Matrix
+rfCM <- confusionMatrix(rfPredictions, testing_set_30$rating_category)
+print(rfCM)
+
+# Overall Accuracy
+rfAccuracy <- rfCM$overall['Accuracy']
+print(rfAccuracy) #0.71442
+
+# Precision, Recall, and F1 Score
+rfPrecision <- rfCM$byClass['Pos Pred Value']
+rfRecall <- rfCM$byClass['Sensitivity']
+rfF1Score <- 2 * (rfPrecision * rfRecall) / (rfPrecision + rfRecall)
+print(rfF1Score) #0.7146
+
+
+#the random forest model shows a marginal improvement over the CART model 
+
+var_importance <- varImp(rfModel)$importance
+
+# Convert to data frame for plotting
+importance_df <- as.data.frame(var_importance)
+importance_df$Variable <- rownames(importance_df)
+
+# Plot variable importance using ggplot2
+ggplot(importance_df, aes(x=reorder(Variable, high), y=high, fill=high)) +
+  geom_bar(stat="identity") +
+  coord_flip() +  # Make the plot horizontal
+  scale_fill_gradient(low= "darkseagreen", high="red") +  # Gradient color for bars
+  labs(x="Variables",
+       y="Importance for 'High' Rating",
+       title="Variable Importance for 'High' Rating from Random Forest",
+       fill="Importance") +
+  theme_minimal() +  # Minimalistic theme
+  theme(legend.position="none",  # Remove the legend to reduce clutter
+        axis.title.x=element_text(size=12, face="bold"),
+        axis.title.y=element_text(size=12, face="bold"),
+        axis.text.x=element_text(size=10),
+        axis.text.y=element_text(size=10),
+        plot.title=element_text(size=14, face="bold", hjust=0.5))  # Center the plot title
+
+
+#70/30 splits shows consistency in the models performance. We will proceed with the 80/20 split model as it is more robust and has a larger sample size. 
+
+#plotting the model performance difference between the two data splits 
+
+model_performance <- data.frame(
+  Model = rep(c("CART", "Random Forest"), each = 2),
+  DataSplit = rep(c("Original", "70/30"), 2),
+  Accuracy = c(0.6685, 0.6655, 0.7132, 0.71442),
+  Precision = c(0.6848, 0.6971, NA, NA),
+  Recall = c(0.6420, 0.6572, NA, NA),
+  F1Score = c(0.6679, 0.6766, 0.7155, 0.7146)
 )
 
-# Combine the data
-metrics_combined <- rbind(metrics_80_20, metrics_70_30)
+# Melting the data for plotting
+model_performance_long <- reshape2::melt(model_performance, id.vars = c("Model", "DataSplit"), variable.name = "Metric")
 
-# Melt the data for plotting
-library(reshape2)
-metrics_melted <- melt(metrics_combined, id.vars = "Split")
 
 # Plotting
-ggplot(metrics_melted, aes(x = Split, y = value, fill = variable)) +
+ggplot(model_performance_long, aes(x = Metric, y = value, fill = DataSplit)) +
   geom_bar(stat = "identity", position = position_dodge(width = 0.8), width = 0.7) +
-  geom_text(aes(label = sprintf("%.2f", value)), vjust = -0.5, position = position_dodge(width = 0.8), size = 3.5) +
-  scale_fill_manual(values = c("F1_Score" = "#EF476F", "Precision" = "#06D6A0", "Recall" = "#118AB2"),
-                    name = "Metric", labels = c("F1 Score", "Precision", "Recall")) +
-  labs(title = "Model Performance Comparison Across Training/Testing Splits",
-       subtitle = "Evaluating F1 Score, Precision, and Recall",
-       x = "Training/Testing Split",
-       y = "Score") +
-  theme_minimal() +
-  theme(
-    plot.title = element_text(face = "bold", size = 14, hjust = 0.5),
-    plot.subtitle = element_text(size = 12, hjust = 0.5),
-    axis.title.x = element_text(size = 12),
-    axis.title.y = element_text(size = 12),
-    legend.position = "bottom",
-    legend.title = element_text(face = "bold", size = 10),
-    legend.text = element_text(size = 9)
-  ) +
-  guides(fill = guide_legend(title.position = "top", title.hjust = 0.5))
+  geom_text(aes(label = sprintf("%.2f", value),  # Formatting to 2 decimal places
+                y = value + 0.02),  # Slightly raise the text above the bar
+            position = position_dodge(width = 0.8),
+            size = 3,  # Adjust text size as needed
+            vjust = 0) +
+  facet_wrap(~ Model, scales = "free_y") +
+  scale_fill_manual(values = c("Original" = "darkseagreen", "70/30" = "tomato")) +
+  labs(title = "Model Performance: Original vs. 70/30 Data Split",
+       x = "Metric",
+       y = "Value") +
+  theme_minimal(base_size = 14) +  # Increase base font size for better readability
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size = 12),
+        legend.title = element_blank(),
+        plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+        panel.grid.major = element_blank(),  # Remove major grid lines
+        panel.grid.minor = element_blank(),  # Remove minor grid lines
+        legend.position = "bottom",  # Move legend to bottom
+        legend.box = "horizontal")  # Horizontal legend keys
 
 
 
