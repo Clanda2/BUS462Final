@@ -39,7 +39,8 @@ library(rpart.plot)
 library(pscl)
 library(psych) 
 library(rBayesianOptimization)
-library(randomForest)
+library(randomForest) 
+library(pROC)
 
 drive_auth() #connecting to Google Drive API for data download
 file_id <- #removed for github
@@ -848,7 +849,9 @@ summary(glm_model4)
 
 #running a stepwise regression to see if we can improve the model
 glm_model5 <- step(glm_model4, direction = "both", trace = 1) #run the stepwise regression model 
-summary(glm_model5) 
+summary(glm_model5)  
+
+
 
 #evaluating the models 
 pR2(glm_model1)
@@ -900,6 +903,29 @@ F1_Score
 #F1 score is 0.2238
 
 #LOGIT model performs extremely poorly we will move on to CART to see if we can generate better predictions
+
+#recall and precision 
+
+# Confusion matrix values
+TP <- 305  # True Positives: "high" predicted as "high"
+FP <- 1040 # False Positives: "low" predicted as "high"
+FN <- 1075 # False Negatives: "high" predicted as "low"
+
+# Calculate Precision
+Precision <- TP / (TP + FP)  
+Precision #0.2267
+
+# Calculate Recall
+Recall <- TP / (TP + FN) 
+Recall 
+#recall is 0.2210
+
+# Calculate F1 Score
+F1_Score <- 2 * (Precision * Recall) / (Precision + Recall) 
+F1_Score 
+#F1 score is 0.2238
+
+
 
 # Fitting a CART model to the training data
 cart_model <- rpart(rating_category ~ . - release_year - tomatometer_rating - audience_rating,  
