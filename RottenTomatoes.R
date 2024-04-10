@@ -111,7 +111,6 @@ duplicates #405 duplicates found, will remove them
 movies_cleaned <- movies_cleaned[!duplicated(movies_cleaned$movie_title),] #remove duplicates
 rm(duplicates) #remove duplicates object
 
-
 #check for outliers in runtime  
 ggplot(movies_cleaned, aes(x = "", y = runtime)) + 
   geom_boxplot(fill = "tomato", color = "navy") +
@@ -119,12 +118,11 @@ ggplot(movies_cleaned, aes(x = "", y = runtime)) +
        x = "", 
        y = "Runtime (minutes)") +
   theme_minimal() +
-  theme(plot.title = element_text(hjust = 0.5),  # Center the plot title
-        axis.title.x = element_blank(),  # Remove x axis label
-        axis.ticks.x = element_blank(),  # Remove x axis ticks
-        axis.text.x = element_blank())  # Remove x axis text
+  theme(plot.title = element_text(hjust = 0.5),  
+        axis.title.x = element_blank(),  
+        axis.ticks.x = element_blank(),  
+        axis.text.x = element_blank())  
 
-#data set has a number of outliers in runtime, but these are valid values so will not remove them 
 
 #add a column that calculates the age of the movie at the time of streaming release 
 movies_cleaned$age_at_streaming <- as.numeric(difftime(movies_cleaned$streaming_release_date, 
@@ -138,12 +136,13 @@ ggplot(movies_cleaned, aes(x = "", y = age_at_streaming)) +
        x = "", 
        y = "Age at Streaming Release (days)") +
   theme_minimal() +
-  theme(plot.title = element_text(hjust = 0.5),  # Center the plot title
-        axis.title.x = element_blank(),  # Remove x axis label
-        axis.ticks.x = element_blank(),  # Remove x axis ticks
-        axis.text.x = element_blank())  # Remove x axis text 
+  theme(plot.title = element_text(hjust = 0.5), 
+        axis.title.x = element_blank(),  
+        axis.ticks.x = element_blank(),  
+        axis.text.x = element_blank())  
 
-#data set has a number of outliers in age at streaming, but these are valid values so will not remove them  
+#data set has a number of outliers in age at streaming, but 
+#these are valid so we will leave these for now 
 
 
 #check for distribution of age at streaming 
@@ -155,10 +154,7 @@ ggplot(movies_cleaned, aes(x = age_at_streaming)) +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5))  # Center the plot title
 
-### this has a number of zeros indicating the movies were released direct to streaming, might considering subsetting into movies 
-### released in theaters first and those that were not 
-
-#data is right skewed, might consider a log transformation for the regression analysis 
+#data is right skewed 
 
 #add a column for the number of actors in the cast 
 movies_cleaned$num_actors <- sapply(movies_cleaned$actors, function(x) length(unlist(strsplit(x, ",\\s*")))) 
@@ -170,13 +166,12 @@ ggplot(movies_cleaned, aes(x = "", y = num_actors)) +
        x = "", 
        y = "Number of Actors") +
   theme_minimal() +
-  theme(plot.title = element_text(hjust = 0.5),  # Center the plot title
-        axis.title.x = element_blank(),  # Remove x axis label
-        axis.ticks.x = element_blank(),  # Remove x axis ticks
-        axis.text.x = element_blank())  # Remove x axis text
+  theme(plot.title = element_text(hjust = 0.5),  
+        axis.title.x = element_blank(),  
+        axis.ticks.x = element_blank(),  
+        axis.text.x = element_blank())  
 
-#one extreme outlier identified, this is a valid entry but wiill skew the data so will remove it 
-
+#shows one extreme outlier that will skew the data so we will remove this value 
 movies_cleaned <- movies_cleaned %>% filter(num_actors < 300) #remove the extreme outlier
 
 
@@ -187,30 +182,28 @@ ggplot(movies_cleaned, aes(x = num_actors)) +
        x = "Number of Actors", 
        y = "Count") +
   theme_minimal() +
-  theme(plot.title = element_text(hjust = 0.5))  # Center the plot title
+  theme(plot.title = element_text(hjust = 0.5))  
 
 
-#data is extremely right skewed, may consider a log transformation for the regression analysis 
+#data is extremely right skewed
 
 #add a column for the number of authors 
 
 movies_cleaned$num_authors <- sapply(movies_cleaned$authors, function(x) length(unlist(strsplit(x, ",\\s*"))))
 
 #check for outliers in the number of authors
-
 ggplot(movies_cleaned, aes(x = "", y = num_authors)) + 
   geom_boxplot(fill = "tomato", color = "navy") +
   labs(title = "Distribution of Number of Authors",
        x = "", 
        y = "Number of Authors") +
   theme_minimal() +
-  theme(plot.title = element_text(hjust = 0.5),  # Center the plot title
-        axis.title.x = element_blank(),  # Remove x axis label
-        axis.ticks.x = element_blank(),  # Remove x axis ticks
-        axis.text.x = element_blank())  # Remove x axis text
+  theme(plot.title = element_text(hjust = 0.5),  
+        axis.title.x = element_blank(),  
+        axis.ticks.x = element_blank(),  
+        axis.text.x = element_blank())  
 
 #two extreme outliers identified, so we will remove them 
-
 movies_cleaned <- movies_cleaned %>% filter(num_authors < 21) #remove the extreme outliers
 
 #plot the distribution of the number of authors 
@@ -220,39 +213,38 @@ ggplot(movies_cleaned, aes(x = num_authors)) +
        x = "Number of Authors", 
        y = "Count") +
   theme_minimal() +
-  theme(plot.title = element_text(hjust = 0.5))  # Center the plot title
+  theme(plot.title = element_text(hjust = 0.5))  
 
-#same problem with skewness, may consider a log transformation for the regression analysis 
 
 #add a column for the number of directors 
-
 movies_cleaned$num_directors <- sapply(movies_cleaned$directors, function(x) length(unlist(strsplit(x, ",\\s*"))))
 
 #check for outliers in the number of directors
-
 ggplot(movies_cleaned, aes(x = "", y = num_directors)) + 
   geom_boxplot(fill = "tomato", color = "navy") +
   labs(title = "Distribution of Number of Directors",
        x = "", 
        y = "Number of Directors") +
   theme_minimal() +
-  theme(plot.title = element_text(hjust = 0.5),  # Center the plot title
-        axis.title.x = element_blank(),  # Remove x axis label
-        axis.ticks.x = element_blank(),  # Remove x axis ticks
-        axis.text.x = element_blank())  # Remove x axis text
+  theme(plot.title = element_text(hjust = 0.5),  
+        axis.title.x = element_blank(),  
+        axis.ticks.x = element_blank(),  
+        axis.text.x = element_blank())  
 
 
-#create a long format data set to seperate each comma seperated genre into its own column to check balance 
-
+#create a long format data set to separate each comma separated 
+#genre into its own column to check balance 
 movies_genre_long <- movies_cleaned %>%
   separate_rows(genres, sep = ",\\s*") %>%
   mutate(genres = trimws(genres))
 
 #one-hot encode the genres column to create dummy variables
-movies_genres_encoded <- fastDummies::dummy_cols(movies_genre_long, select_columns = "genres", remove_selected_columns = TRUE)
+movies_genres_encoded <- fastDummies::dummy_cols(movies_genre_long, 
+  select_columns = "genres", remove_selected_columns = TRUE)
 
 #convert back to wide format
-movies_genres_encoded <- movies_genres_encoded %>% group_by(movie_title) %>% summarise(across(starts_with("genres"), sum))
+movies_genres_encoded <- movies_genres_encoded %>% group_by(movie_title) %>% 
+  summarise(across(starts_with("genres"), sum))
 
 #count the number of occurrences of each genre
 genre_occurrences <- colSums(movies_genres_encoded[, -which(names(movies_genres_encoded) %in% c("movie_title", "other_non_genre_columns"))])
@@ -267,7 +259,7 @@ ggplot(genre_occurrences_df, aes(x = reorder(Genre, Occurrences), y = Occurrence
        x = "Genre", 
        y = "Number of Movies") +
   theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x axis labels
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  
 
 #check for balance in the genres
 genre_balance <- genre_occurrences_df$Occurrences / nrow(movies_cleaned) * 100
@@ -277,7 +269,6 @@ print(genre_balance_df)
 
 
 #genres are extremely unbalanced, so will aggregate the less common genres into an "Other" category 
-
 movies_genres_encoded$genres_Other <- 0 #create the other column with initial value of 0
 genres_to_aggregate <- c("genres_Animation", "genres_Western", "genres_Television", 
                          "genres_Sports & Fitness", "genres_Cult Movies", "genres_Gay & Lesbian",
@@ -297,8 +288,6 @@ genre_balance_df <- data.frame(Genre = genre_occurrences_df$Genre, Balance = gen
 genre_balance_df <- genre_balance_df[order(-genre_balance_df$Balance),] #sort by balance
 print(genre_balance_df) 
 
-#data is still skewed but balance is still skewed, may consider log transformation or LASSO model 
-
 
 #bind the encoded genres back to the cleaned data set and drop the original genres column 
 movies_cleaned <- movies_cleaned %>% select(-genres)
@@ -308,15 +297,14 @@ movies_cleaned <- left_join(movies_cleaned, movies_genres_encoded, by = "movie_t
 rm(movies_genre_long, movies_genres_encoded, genre_occurrences, genre_occurrences_df, genre_balance, genre_balance_df)
 rm(genres_to_aggregate)
 
-#additional feature engineering to add the required columns for hypothesis 2: seasonality  
 
 #check for blank values in the release date column 
 blank_release_dates <- sum(movies_cleaned$original_release_date == "")
 blank_release_dates #no blank values so we can proceed
 
 
+#feature engineering for seasonality 
 movies_cleaned$release_month <- format(movies_cleaned$original_release_date, "%m") #extract the month from the release date
-
 movies_cleaned$release_year <- format(movies_cleaned$original_release_date, "%Y") #extract the year from the release date
 movies_cleaned$release_month <- as.numeric(movies_cleaned$release_month) #convert to numeric for categorization
 movies_cleaned$release_year <- as.numeric(movies_cleaned$release_year) #convert to numeric for categorization
@@ -335,13 +323,14 @@ ggplot(movies_cleaned, aes(x = season)) +
        x = "Season", 
        y = "Number of Movies") +
   theme_minimal() +
-  theme(plot.title = element_text(hjust = 0.5))  # Center the plot title
+  theme(plot.title = element_text(hjust = 0.5)) 
 
 #approximately equal distribution of movies across the seasons so we can proceed with the analysis 
 
 
 #one hot encode the season column and remove the original column 
-movies_cleaned <- fastDummies::dummy_cols(movies_cleaned, select_columns = "season", remove_selected_columns = TRUE)
+movies_cleaned <- fastDummies::dummy_cols(movies_cleaned, 
+        select_columns = "season", remove_selected_columns = TRUE)
 
 
 #adding an aditional column for actor popularity
@@ -389,42 +378,36 @@ movies_cleaned$audience_count <- log1p(movies_cleaned$audience_count) #apply a l
 
 
 #Check for outliers in the actor popularity scores 
-
 ggplot(movies_cleaned, aes(x = "", y = actor_popularity)) + 
   geom_boxplot(fill = "tomato", color = "navy") +
   labs(title = "Distribution of Actor Popularity Scores",
        x = "", 
        y = "Actor Popularity Score") +
   theme_minimal() +
-  theme(plot.title = element_text(hjust = 0.5),  # Center the plot title
-        axis.title.x = element_blank(),  # Remove x axis label
-        axis.ticks.x = element_blank(),  # Remove x axis ticks
-        axis.text.x = element_blank())  # Remove x axis text 
+  theme(plot.title = element_text(hjust = 0.5),  
+        axis.title.x = element_blank(),  
+        axis.ticks.x = element_blank(),  
+        axis.text.x = element_blank())  
 
-#check distibution of actor popularity scores
-
+#check distribution of actor popularity scores
 ggplot(movies_cleaned, aes(x = actor_popularity)) + 
   geom_histogram(fill = "tomato", color = "navy", bins = 30) +
   labs(title = "Distribution of Actor Popularity Scores",
        x = "Actor Popularity Score", 
        y = "Count") +
   theme_minimal() +
-  theme(plot.title = element_text(hjust = 0.5))  # Center the plot title
+  theme(plot.title = element_text(hjust = 0.5))  
 
 
 movies_cleaned$actor_popularity <- as.numeric(movies_cleaned$actor_popularity) #convert to numeric for regression analysis
 
-
 #save the cleaned data set to a csv file
 write.csv(movies_cleaned, "movies_cleaned_3.csv", row.names = FALSE)
 
-names(movies_cleaned) 
 
-
-####### Question 3 - EXPLORATORY ANALYSIS ######## 
+####### EXPLORATORY ANALYSIS ######## 
 
 #create a correlation matrix to check for multicollinearity and correlation between the numeric columns
-
 numeric_columns <- movies_cleaned %>%
   select(runtime, audience_rating, audience_count, tomatometer_rating, 
          age_at_streaming, num_actors, num_authors, num_directors, 
@@ -447,14 +430,10 @@ corrplot(cor_matrix, method = "color", type = "upper",
          mar = c(0,0,1,0)) 
 
 #matrix shows some potential multicollinearity between number of actors and actor_popularity so we wil remove num actors from the analysis 
-
 movies_cleaned <- movies_cleaned %>% select(-num_actors) #drop the num_actors column
 
-
 #check stargazer for the summary statistics excluding the dummy variables 
-
 stargazer(movies_cleaned %>% select(-starts_with("season"), -starts_with("genres")), type = "text") #exclude the dummy variables
-
 
 #plot the distribution of audience count
 ggplot(movies_cleaned, aes(x = audience_count)) + 
@@ -466,7 +445,6 @@ ggplot(movies_cleaned, aes(x = audience_count)) +
   theme(plot.title = element_text(hjust = 0.5)) + #centers the title  
   scale_y_continuous(labels = scales::comma)  #removes scientific notation 
 
-
 #check the distribution of the years in the data set 
 ggplot(movies_cleaned, aes(x = release_year)) + 
   geom_histogram(fill = "tomato", color = "navy", bins = 30) +
@@ -476,11 +454,8 @@ ggplot(movies_cleaned, aes(x = release_year)) +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5))  
 
-#data is skewed but this is expected, will consider this in the analysis  
 
 #examining effect of year on seasonality of ratings 
-
-
 #reconstructing seasons to examine time series analysis 
 # Example of reconstructing the 'season' variable from one-hot encoded columns
 movies_cleaned$season_visualization <- with(movies_cleaned,
@@ -495,13 +470,9 @@ movies_cleaned$season_visualization <- factor(movies_cleaned$season_visualizatio
 season_visualization <- as.factor(movies_cleaned$season_visualization) #convert to factor for visualization
 
 
-
-
 #data set to large for meaningful visualization so will subset to a smaller sample 
 sample_size <- floor(0.1 * nrow(movies_cleaned))
 movies_sampled <- movies_cleaned[sample(nrow(movies_cleaned), sample_size), ] #take a 10% sample of the data set 
-
-#check that the sample is representative of the original data set 
 
 # Full dataset summary using dplyr for a cleaner output
 summary_full <- movies_cleaned %>%
@@ -533,7 +504,6 @@ year_breaks <- seq(min(movies_sampled$release_year, na.rm = TRUE),
 
 movies_sampled$release_year <- as.numeric(movies_sampled$release_year)  # Convert release year to factor for better visualization
 
-
 # Generate the plot
 years_seasonality <- ggplot(movies_sampled, aes(x = release_year, y = tomatometer_rating)) +
   geom_jitter(aes(color = season_visualization), alpha = 0.6, width = 0.2, height = 0) +
@@ -562,17 +532,12 @@ print(years_seasonality) #years_seasonlity stored as a data object for later use
 
 
 
-
 ####### HYPOTHESIS TESTING AND MODELS ########  
 
 movies_cleaned <- read.csv("/Users/chase/Documents/movies_cleaned_3.csv" , header = TRUE) #read in the cleaned data set
 
 
-
-#Question: what factors influence the tomatometer rating of a movie on Rotten Tomatoes?   
-
 #drop the movie_title, directors, authors, actors, original_release_date, streaming_release_date columns as they are not needed for the analysis
-
 movies_cleaned <- movies_cleaned %>% select(-movie_title, -directors, -authors, -actors, -original_release_date, -streaming_release_date)
 movies_cleaned <- movies_cleaned %>% select(-season_visualization) #drop the season_visualization column as it is not needed for the analysis
 names(movies_cleaned) 
@@ -596,7 +561,6 @@ testing_set <- OLS_set[-training_indices, ]
 
 
 #run the first kitchen sink model to see the effect of all variables on the tomatometer rating 
-
 lm_modelKS <- lm(tomatometer_rating ~ ., data = training_set)
 summary(lm_modelKS) #R2 = 0.8109
 
@@ -617,7 +581,6 @@ plot(lm_model1) #check the residuals
 #we will adjust the data set to address these issues and rerun the models 
 
 #step 1 - addressing outliers 
-
 cooks_d <- cooks.distance(lm_model1) #calculate the cooks distance
 n <- length(fitted(lm_model1))
 k <- length(lm_model1$coefficients)
@@ -630,9 +593,9 @@ length(outliers) #430 outliers identified that exceed the threshold
 
 #remove the outliers from the data set 
 movies_cleaned <- movies_cleaned[-outliers, ] #remove the extreme outliers
-OLS_set <- OLS_set[-outliers, ] #remove the extreme outliers  
-testing_set <- testing_set[-outliers, ] #remove the extreme outliers
-training_set <- training_set[-outliers, ] #remove the extreme outliers
+OLS_set <- OLS_set[-outliers, ]   
+testing_set <- testing_set[-outliers, ] 
+training_set <- training_set[-outliers, ] 
 
 #rerun the model 
 lm_model2 <- lm(tomatometer_rating ~ . - release_year, data = training_set)
@@ -641,13 +604,11 @@ plot(lm_model2)  #R^2 = 0.8362
 
 #still has outlier but will continue with this model for now and adjust later if necessary
 
-
 #Tomatometer status and rating are highly correlated so we will remove the status column from the data set 
 movies_cleaned <- movies_cleaned %>% select(-tomatometer_status) #drop the tomatometer_status column   
 OLS_set <- OLS_set %>% select(-tomatometer_status) #drop the tomatometer_status column
 testing_set <- testing_set %>% select(-tomatometer_status) #drop the tomatometer_status column
 training_set <- training_set %>% select(-tomatometer_status) #drop the tomatometer_status column
-
 
 #rerun the model 
 lm_model3 <- lm(tomatometer_rating ~ . - release_year, data = training_set) 
@@ -691,7 +652,6 @@ OLS_set$age_at_streaming <- OLS_set$age_at_streaming + abs(min_age) + 1 #add the
 testing_set$age_at_streaming <- testing_set$age_at_streaming + abs(min_age) + 1 #add the minimum value to avoid log(0) 
 training_set$age_at_streaming <- training_set$age_at_streaming + abs(min_age) + 1 #add the minimum value to avoid log(0)
 
-
 movies_cleaned$age_at_streaming <- log1p(movies_cleaned$age_at_streaming) #apply a log transformation to the age at streaming  
 OLS_set$age_at_streaming <- log1p(OLS_set$age_at_streaming) #apply a log transformation to the age at streaming 
 testing_set$age_at_streaming <- log1p(testing_set$age_at_streaming) #apply a log transformation to the age at streaming 
@@ -729,7 +689,6 @@ training_set[numeric_columns] <- scale(training_set[numeric_columns], center = t
 # Scale the numeric columns in the testing set using the same mean and SD from the training set
 testing_set[numeric_columns] <- scale(testing_set[numeric_columns], center = train_mean, scale = train_sd)
 
-
 #rerun the model 
 lm_model5 <- lm(tomatometer_rating ~ . - release_year, data = training_set)
 summary(lm_model5) 
@@ -758,7 +717,6 @@ summary(lm_model6) #adjusted R2 = 0.5537
 plot(lm_model6)
 
 #adding polynomial terms to account for non-linearity in year and audience rating
-
 base_formula <- "tomatometer_rating ~ runtime + poly(audience_rating, 2) + audience_count + age_at_streaming + num_authors + num_directors + actor_popularity + content_rating + poly(release_year, 2) + season_Winter + season_Summer + season_Fall"
 full_formula_str <- paste(base_formula, paste(genre_vars, collapse=" + "), sep=" + ")
 interaction_terms <- " + release_year:season_Winter + release_year:season_Summer + release_year:season_Fall"
@@ -771,24 +729,18 @@ plot(lm_model7)
 #very little change in linearity but small model improvement, will proceed to stepwise 
 
 #running stepwise regression to determine the best model 
-
 lm_model8<- step(lm_model7, direction = "both", trace = 1) #run the stepwise regression model
 summary(lm_model8)
 plot(lm_model8) #R^2 = 0.5546
 
 
 #stepwise removes some interaction effects, genres_comedy, seasons and runtime 
-
 AIC(lm_model3, lm_model4, lm_model5, lm_model6, lm_model7, lm_model8) #check the AIC values to determine the best model
-
 stargazer(lm_model6, lm_model7, lm_model8, type = "text")
-
-
 
 #model 8 has the lowest AIC value so we will proceed with this model. 
 
 #cross validation of the model 
-
 train_control <- trainControl(method = "cv", number = 10)  # Set up the cross-validation method 
 lm_model8_cv <- train(tomatometer_rating ~ season_Summer:release_year + season_Winter:release_year + 
                         genres_Science.Fiction...Fantasy + genres_Mystery...Suspense + genres_Kids...Family + 
@@ -799,18 +751,15 @@ lm_model8_cv <- train(tomatometer_rating ~ season_Summer:release_year + season_W
                   
 lm_model8_cv$results  # Display the results of the cross-validation
  
-
 #cross-validation shows a relatively stable model - R^2 = 0.5525
 
 #using the test set to validate the model 
-
 predictions <- predict(lm_model8, newdata = testing_set)  # Make predictions on the testing set 
 rmse <- sqrt(mean((testing_set$tomatometer_rating - predictions)^2))  # Calculate the RMSE 
 print(paste("RMSE:", round(rmse, 2)))  #RMSE = 0.69 
 
 mae <- mean(abs(testing_set$tomatometer_rating - predictions))  # Calculate the MAE
 print(paste("MAE:", round(mae, 2)))  #MAE = 0.54
-
 
 results_df <- data.frame(Actual = testing_set$tomatometer_rating, Predicted = predictions) # Creating a data frame with actual and predicted values
 
@@ -847,7 +796,6 @@ movies_clean_scaled$rating_category <- ifelse(movies_clean_scaled$tomatometer_ra
 movies_clean_scaled$rating_category <- as.factor(movies_clean_scaled$rating_category) # Convert to factor for logistic regression
 str(movies_clean_scaled) #check the data set
 
-
 #splitting the data set into training and testing sets
 
 #reshuffle the data set to ensure randomness in the training and testing sets
@@ -861,14 +809,11 @@ training_indices <- createDataPartition(movies_clean_scaled$rating_category, p =
 training_set <- movies_clean_scaled[training_indices, ]
 testing_set <- movies_clean_scaled[-training_indices, ] 
 
-
 #removing the tomater_rating column as it will result in perfect multicollinearity 
-
 glm_model1 <- glm(rating_category ~ . - release_year - tomatometer_rating, data = training_set, family = "binomial") 
 summary(glm_model1)   
 
 #adding the interactions terms to the model just as we did with the linear regression model 
-
 genre_vars <- names(training_set)[grepl("^genres_", names(training_set))]
 base_formula <- "rating_category ~ runtime + audience_rating + audience_count + age_at_streaming + num_authors + num_directors + actor_popularity + content_rating + release_year + season_Winter + season_Summer + season_Fall + season_Spring"
 full_formula_str <- paste(base_formula, paste(genre_vars, collapse=" + "), sep=" + ")
@@ -883,7 +828,6 @@ summary(glm_model2)
 
 
 #adding the polynomial terms to the model 
-
 base_formula <- "rating_category ~ runtime + poly(audience_rating, 2) + audience_count + age_at_streaming + num_authors + num_directors + actor_popularity + content_rating + poly(release_year, 2) + season_Winter + season_Summer + season_Fall + season_Spring"
 full_formula_str <- paste(base_formula, paste(genre_vars, collapse=" + "), sep=" + ")
 interaction_terms <- " + release_year:season_Winter + release_year:season_Summer + release_year:season_Fall + release_year:season_Spring"
@@ -902,13 +846,11 @@ glm_model4 <- glm(full_formula, data=training_set, family = "binomial")
 summary(glm_model4)
 
 
-#running a stepwise regression to see if we can improve the model 
-
+#running a stepwise regression to see if we can improve the model
 glm_model5 <- step(glm_model4, direction = "both", trace = 1) #run the stepwise regression model 
 summary(glm_model5) 
 
 #evaluating the models 
-
 pR2(glm_model1)
 pR2(glm_model2)
 pR2(glm_model3) 
@@ -926,7 +868,6 @@ stargazer(glm_model4, glm_model5, type = "text") #print the model summary statis
 
 
 #glm 5 has a lower AIC value so we will proceed with this model 
-
 predictions_prob <- predict(glm_model5, newdata = testing_set, type = "response")
 predictions_class <- ifelse(predictions_prob > 0.5, "high", "low")
 
@@ -960,23 +901,19 @@ F1_Score
 
 #LOGIT model performs extremely poorly we will move on to CART to see if we can generate better predictions
 
-
 # Fitting a CART model to the training data
 cart_model <- rpart(rating_category ~ . - release_year - tomatometer_rating - audience_rating,  
                     data = training_set, method = "class") 
 
 
 print(cart_model)  # Display the CART model 
-
 par(mfrow = c(1, 1))  # Reset the plot layout to a single plot
 rpart.plot(cart_model, main="CART Model for Movie Ratings", extra=102, under=TRUE, faclen=0) 
 
 #Max depth to validate the best model 
 
-
 # Set up cross-validation controls
 control <- trainControl(method="cv", number=3, savePredictions = TRUE, search = "grid")
-
 
 # Initialize an empty data frame to store results
 results <- data.frame(maxdepth = integer(), 
@@ -993,7 +930,7 @@ for (maxdepth in 1:7) {
                method = "rpart",
                trControl = control, 
                tuneGrid = expand.grid(cp = 0.01), 
-               control = rpart.control(maxdepth = maxdepth, cp = 0.01)) # 
+               control = rpart.control(maxdepth = maxdepth, cp = 0.01)) 
   
   # Predict on the testing set to get the confusion matrix
   predictions <- predict(fit, training_set, type = "raw")
@@ -1013,7 +950,6 @@ for (maxdepth in 1:7) {
                               Precision= precision,
                               Recall = recall))
 }
-
 
 # Plot F1_Score vs. Prediction Performance Metrics
 
@@ -1036,26 +972,20 @@ best_maxdepth_f1 <- results$maxdepth[which.max(results$F1_Score)]
 best_maxdepth_f1 #print the best max depth for the model
 
 # representing the best max depth for the model based on your prior analysis
-
 best_fit_F1 <- rpart(rating_category ~ . - release_year - tomatometer_rating - audience_rating, 
                      data = training_set, 
                      method = "class", 
                      control = rpart.control(maxdepth = best_maxdepth_f1, cp = 0.01))
 
-
-
 rpart.plot(best_fit_F1, main="CART Model for Movie Ratings", extra=102, under=TRUE, faclen=0) 
 
 #test on the test set 
-
 predictions <- predict(best_fit_F1, newdata = testing_set, type = "class") 
 
 # Confusion Matrix
-
 table(Predicted = predictions, Actual = testing_set$rating_category)
 
 # Accuracy
-
 accuracy <- sum(predictions == testing_set$rating_category) / nrow(testing_set)
 accuracy #0.66.37%
 
@@ -1067,15 +997,14 @@ FP <- 415  # False Positives: "low" predicted as "high"
 FN <- 494  # False Negatives: "high" predicted as "low" 
 
 # Calculate Precision
-
 Precision <- TP / (TP + FP)
 Precision #0.6810
 # Calculate Recall
 
 Recall <- TP / (TP + FN)
 Recall #0.6420
-# Calculate F1 Score
 
+# Calculate F1 Score
 F1_Score <- 2 * (Precision * Recall) / (Precision + Recall)
 F1_Score #0.6609
 
@@ -1117,7 +1046,6 @@ for (maxdepth in max_depth_values) {
 # Plotting the results
 data_long <- melt(results, id.vars=c("maxdepth", "cp"), variable.name="Metric", value.name="Value")
 
-
 data_long$cp <- as.factor(data_long$cp)
 
 ggplot(data_long, aes(x=factor(maxdepth), y=Value, fill=cp)) + 
@@ -1141,15 +1069,12 @@ best_fit <- rpart(rating_category ~ . - release_year - tomatometer_rating - audi
 rpart.plot(best_fit, main="Optimized CART Model for Movie Ratings", extra=102, under=TRUE, faclen=0)
 
 #test on the test set 
-
 predictions <- predict(best_fit, newdata = testing_set, type = "class") 
 
 # Confusion Matrix
-
 table(Predicted = predictions, Actual = testing_set$rating_category)
 
 # Accuracy
-
 accuracy <- sum(predictions == testing_set$rating_category) / nrow(testing_set)
 accuracy #0.6685
 
@@ -1161,7 +1086,6 @@ FP <- 415  # False Positives: "low" predicted as "high"
 FN <- 494  # False Negatives: "high" predicted as "low" 
 
 # Calculate Precision
-
 Precision <- TP / (TP + FP)
 Precision #0.6848
 # Calculate Recall
@@ -1211,8 +1135,6 @@ bayes_opt_results <- BayesianOptimization(
 # Review the best parameters found
 print(bayes_opt_results$Best_Par)
 
-str(bayes_opt_results)
-
 # Accessing the best parameters
 best_cp <- bayes_opt_results$Best_Par["cp"]
 best_maxdepth <- as.integer(bayes_opt_results$Best_Par["maxdepth"])
@@ -1228,18 +1150,13 @@ final_model <- rpart(
 # Plot the final model
 rpart.plot(final_model, main="Bayes Optimized CART Model for Movie Ratings", extra=102, under=TRUE, faclen=0) 
 
-
-
 #test on the train set 
-
 predictions <- predict(final_model, newdata = training_set, type = "class") 
 
 # Confusion Matrix
-
 table(Predicted = predictions, Actual = training_set$rating_category)
 
 # Accuracy
-
 accuracy <- sum(predictions == training_set$rating_category) / nrow(training_set)
 accuracy #0.7224
 
@@ -1251,50 +1168,43 @@ FP <- 1318  # False Positives: "low" predicted as "high"
 FN <- 1662 # False Negatives: "high" predicted as "low" 
 
 # Calculate Precision
-
 Precision <- TP / (TP + FP)
-Precision #0.7432
+Precision #0.7432 
+
 # Calculate Recall
-
 Recall <- TP / (TP + FN)
-Recall #0.6978
-# Calculate F1 Score
+Recall #0.6978 
 
+# Calculate F1 Score
 F1_Score <- 2 * (Precision * Recall) / (Precision + Recall)
 F1_Score #0.7191
 
 #test on the test set 
- 
 predictions <- predict(final_model, newdata = testing_set, type = "class") 
 
 # Confusion Matrix 
-
 table(Predicted = predictions, Actual = testing_set$rating_category) 
 
 # Accuracy
-
 accuracy <- sum(predictions == testing_set$rating_category) / nrow(testing_set) 
 accuracy #0.6637
 
 #recall and precision 
 
 # Confusion matrix values 
-
 TP <- 907 # True Positives: "high" predicted as "high" 
 FP <- 394  # False Positives: "low" predicted as "high"
 FN <- 473 # False Negatives: "high" predicted as "low" 
 
 # Calculate Precision 
-
 Precision <- TP / (TP + FP)  
 Precision #0.6971
 
 # Calculate Recall 
-
 Recall <- TP / (TP + FN)
-Recall #0.6572
-# Calculate F1 Score
+Recall #0.6572 
 
+# Calculate F1 Score
 F1_Score <- 2 * (Precision * Recall) / (Precision + Recall)
 F1_Score #0.6766
 
@@ -1337,9 +1247,7 @@ rfRecall <- rfCM$byClass['Sensitivity']
 rfF1Score <- 2 * (rfPrecision * rfRecall) / (rfPrecision + rfRecall)
 print(rfF1Score) #0.7155
 
-
 #the random forest model shows a marginal improvement over the CART model 
- 
 var_importance <- varImp(rfModel)$importance
 
 # Convert to data frame for plotting
@@ -1369,9 +1277,6 @@ ggplot(importance_df, aes(x=reorder(Variable, high), y=high, fill=high)) +
 
 #previous CART model shows that movies that are in theatres longer, have more popular actors 
 #and have longer runtimes are more likely to be high rated 
-
-
-
 
 ########70/30 Split to validate the models############
 
@@ -1441,15 +1346,12 @@ best_fit <- rpart(rating_category ~ . - release_year - tomatometer_rating - audi
 rpart.plot(best_fit, main="Optimized CART Model for Movie Ratings", extra=102, under=TRUE, faclen=0)
 
 #test on the test set 
-
 predictions <- predict(best_fit, newdata = testing_set_30, type = "class") 
 
 # Confusion Matrix
-
 table(Predicted = predictions, Actual = testing_set_30$rating_category)
 
 # Accuracy
-
 accuracy <- sum(predictions == testing_set_30$rating_category) / nrow(testing_set_30)
 accuracy #0.6655
 
@@ -1461,20 +1363,18 @@ FP <- 686 # False Positives: "low" predicted as "high"
 FN <- 670  # False Negatives: "high" predicted as "low" 
 
 # Calculate Precision
-
 Precision <- TP / (TP + FP)
 Precision #0.6971
 
 # Calculate Recall
 Recall <- TP / (TP + FN)
-Recall #0.6572
-# Calculate F1 Score
+Recall #0.6572 
 
+# Calculate F1 Score
 F1_Score <- 2 * (Precision * Recall) / (Precision + Recall)
 F1_Score #0.6766
  
 #Random Forest Models 
-
 
 # Set up cross-validation controls
 rfControl <- trainControl(method="cv", number=10, savePredictions=TRUE)
@@ -1512,9 +1412,7 @@ rfRecall <- rfCM$byClass['Sensitivity']
 rfF1Score <- 2 * (rfPrecision * rfRecall) / (rfPrecision + rfRecall)
 print(rfF1Score) #0.7146
 
-
 #the random forest model shows a marginal improvement over the CART model 
-
 var_importance <- varImp(rfModel)$importance
 
 # Convert to data frame for plotting
@@ -1539,10 +1437,9 @@ ggplot(importance_df, aes(x=reorder(Variable, high), y=high, fill=high)) +
         plot.title=element_text(size=14, face="bold", hjust=0.5))  # Center the plot title
 
 
-#70/30 splits shows consistency in the models performance. We will proceed with the 80/20 split model as it is more robust and has a larger sample size. 
+#70/30 splits shows consistency in the models performance. We will now plot the model performance difference between the two data splits
 
 #plotting the model performance difference between the two data splits 
-
 model_performance <- data.frame(
   Model = rep(c("CART", "Random Forest"), each = 2),
   DataSplit = rep(c("Original", "70/30"), 2),
@@ -1554,7 +1451,6 @@ model_performance <- data.frame(
 
 # Melting the data for plotting
 model_performance_long <- reshape2::melt(model_performance, id.vars = c("Model", "DataSplit"), variable.name = "Metric")
-
 
 # Plotting
 ggplot(model_performance_long, aes(x = Metric, y = value, fill = DataSplit)) +
@@ -1577,6 +1473,3 @@ ggplot(model_performance_long, aes(x = Metric, y = value, fill = DataSplit)) +
         panel.grid.minor = element_blank(),  # Remove minor grid lines
         legend.position = "bottom",  # Move legend to bottom
         legend.box = "horizontal")  # Horizontal legend keys
-
-
-
