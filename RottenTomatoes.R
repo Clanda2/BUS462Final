@@ -1055,7 +1055,8 @@ ggplot(data_long, aes(x=factor(maxdepth), y=Value, fill=cp)) +
   xlab("Max Depth") +
   ylab("Score") +
   theme_minimal() +
-  scale_fill_viridis_d(name="CP Value") 
+  scale_fill_viridis_d(name="CP Value")  
+
 # Identifying the best combination based on your metric of choice, e.g., F1 Score
 best_combination <- results[which.max(results$F1_Score),]
 
@@ -1472,4 +1473,68 @@ ggplot(model_performance_long, aes(x = Metric, y = value, fill = DataSplit)) +
         panel.grid.major = element_blank(),  # Remove major grid lines
         panel.grid.minor = element_blank(),  # Remove minor grid lines
         legend.position = "bottom",  # Move legend to bottom
-        legend.box = "horizontal")  # Horizontal legend keys
+        legend.box = "horizontal")  # Horizontal legend keys 
+
+
+#using the unscaled data to interpret the tree  
+
+# Calculate the mean and standard deviation for 'age_at_streaming' in the original dataset
+age_mean <- mean(movies_cleaned$age_at_streaming, na.rm = TRUE)
+age_sd <- sd(movies_cleaned$age_at_streaming, na.rm = TRUE)
+
+# Calculate the original value corresponding to -1.1 standard deviations from the mean
+original_value_at_1_1_sd <- age_mean + (1.1 * age_sd)
+print(original_value_at_1_1_sd) 
+
+#undo the log transformation 
+original_value_log1p <- exp(9.519347) - 1 
+print(original_value_log1p)
+
+#convert 13619.71 days to years  
+original_value_years <- 13619.71 / 365.25
+print(original_value_years)
+
+#movies that are over 37 years old at the time of streaming are more likely to be rated highly
+ 
+# Calculate the mean and standard deviation for 'age_at_streaming' in the original dataset
+popularity_mean <- mean(movies_cleaned$actor_popularity, na.rm = TRUE)
+popularity_sd <- sd(movies_cleaned$actor_popularity, na.rm = TRUE)
+
+# Calculate the original value corresponding to -1.1 standard deviations from the mean
+original_value_at_negative_0_65_sd <- popularity_mean + (-0.65 * age_sd)
+print(original_value_at_negative_0_65_sd) 
+
+#undo the log transformation 
+original_value_log1p <- exp(4.340862) - 1 
+print(original_value_log1p)
+
+#Mean popularity score of 76.5 is more likely to be rated highly 
+
+# Calculate the mean and standard deviation for 'age_at_streaming' in the original dataset
+runtime_mean <- mean(movies_cleaned$runtime, na.rm = TRUE)
+runtime_sd <- sd(movies_cleaned$runtime, na.rm = TRUE)
+
+# Calculate the original value corresponding to -1.1 standard deviations from the mean
+original_value_at_negative_0_33_sd <- runtime_mean + (0.33 * runtime_sd)
+print(original_value_at_negative_0_33_sd) 
+
+#movies that are >109 minutes long are more likely to be rated highly 
+
+# Calculate the mean and standard deviation for 'age_at_streaming' in the original dataset
+audience_count_mean <- mean(movies_cleaned$audience_count, na.rm = TRUE)
+audeince_count_sd <- sd(movies_cleaned$audience_count, na.rm = TRUE)
+
+# Calculate the original value corresponding to -1.1 standard deviations from the mean
+original_value_at_negative_0_026_sd <- audience_count_mean + (0.026 * audeince_count_sd)
+print(original_value_at_negative_0_026_sd) 
+
+#undo the log transformation 
+original_value_log1p <- exp(8.776479) - 1 
+print(original_value_log1p) 
+
+#movies with an audience count of at least 6479 are more likely to be rated highly  
+
+
+
+
+ 
