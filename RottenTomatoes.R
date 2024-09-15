@@ -1,5 +1,7 @@
 
-# BUS 462 -- Final Project  
+# BUS 462 -- Final Project  -- Rotten Tomatoes Movie Analysis 
+# Authors: Chase Landa, Nicholas Hartano, Nicole Almazaro, Mi Hee Hashimoto Chang   
+
 ######################################################### 
 
 cat("\014")  # Clear Console
@@ -7,7 +9,7 @@ rm(list = ls(all.names = TRUE))# clear all data objects
 gc() # clear memory
 set.seed(42) 
 
-
+########################################################
 #installing packages
 
 install.packages("googledrive")
@@ -40,10 +42,9 @@ library(pscl)
 library(psych) 
 library(rBayesianOptimization)
 library(randomForest) 
-library(pROC)
 
 drive_auth() #connecting to Google Drive API for data download
-file_id <- #removed for github
+file_id <- (https://drive.google.com/file/d/1LtLVMOV2yBkhXo-DrvXS3E5O_U_l1M0K/view?usp=drive_link)
 downloaded_file <- drive_download(as_id(file_id),overwrite = TRUE) 
 movies <- read.csv(downloaded_file$name, header = TRUE)
 rm(downloaded_file, file_id)                        
@@ -86,9 +87,9 @@ movies_cleaned <- movies_cleaned %>% select(-production_company)
 movies_cleaned <- movies_cleaned %>% select(-tomatometer_top_critics_count) # Drop the tomatometer_top_critics_count column
 movies_cleaned <- movies_cleaned %>% select(-tomatometer_rotten_critics_count) # Drop the tomatometer_rotten_critics_count column 
 movies_cleaned <- movies_cleaned %>% select(-tomatometer_fresh_critics_count)
-movies_cleaned <- movies_cleaned %>% select(-tomatometer_status)
-movies_cleaned <- movies_cleaned %>% select (-tomatometer_count)
-names(movies_cleaned)
+movies_cleaned <- movies_cleaned %>% select(-tomatometer_status) #drop the tomatometer_status column
+movies_cleaned <- movies_cleaned %>% select (-tomatometer_count) #drop the tomatometer_count column
+names(movies_cleaned) #check the columns that remain
 
 #convert the data types to the necesary types for analysis 
 movies_cleaned$runtime <- as.numeric(movies_cleaned$runtime)
@@ -145,7 +146,6 @@ ggplot(movies_cleaned, aes(x = "", y = age_at_streaming)) +
 #data set has a number of outliers in age at streaming, but 
 #these are valid so we will leave these for now 
 
-
 #check for distribution of age at streaming 
 ggplot(movies_cleaned, aes(x = age_at_streaming)) + 
   geom_histogram(fill = "tomato", color = "navy", bins = 30) +
@@ -185,12 +185,10 @@ ggplot(movies_cleaned, aes(x = num_actors)) +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5))  
 
-
 #data is extremely right skewed
 
 #add a column for the number of authors 
-
-movies_cleaned$num_authors <- sapply(movies_cleaned$authors, function(x) length(unlist(strsplit(x, ",\\s*"))))
+movies_cleaned$num_authors <- sapply(movies_cleaned$authors, function(x) length(unlist(strsplit(x, ",\\s*")))) #count the number of authors by splitting the authors column by string
 
 #check for outliers in the number of authors
 ggplot(movies_cleaned, aes(x = "", y = num_authors)) + 
@@ -205,7 +203,7 @@ ggplot(movies_cleaned, aes(x = "", y = num_authors)) +
         axis.text.x = element_blank())  
 
 #two extreme outliers identified, so we will remove them 
-movies_cleaned <- movies_cleaned %>% filter(num_authors < 21) #remove the extreme outliers
+movies_cleaned <- movies_cleaned %>% filter(num_authors < 21) #remove the extreme outliers (over 21)
 
 #plot the distribution of the number of authors 
 ggplot(movies_cleaned, aes(x = num_authors)) + 
@@ -216,9 +214,8 @@ ggplot(movies_cleaned, aes(x = num_authors)) +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5))  
 
-
 #add a column for the number of directors 
-movies_cleaned$num_directors <- sapply(movies_cleaned$directors, function(x) length(unlist(strsplit(x, ",\\s*"))))
+movies_cleaned$num_directors <- sapply(movies_cleaned$directors, function(x) length(unlist(strsplit(x, ",\\s*")))) #count the number of directors by splitting the directors column by string
 
 #check for outliers in the number of directors
 ggplot(movies_cleaned, aes(x = "", y = num_directors)) + 
@@ -231,7 +228,6 @@ ggplot(movies_cleaned, aes(x = "", y = num_directors)) +
         axis.title.x = element_blank(),  
         axis.ticks.x = element_blank(),  
         axis.text.x = element_blank())  
-
 
 #create a long format data set to separate each comma separated 
 #genre into its own column to check balance 
@@ -328,7 +324,6 @@ ggplot(movies_cleaned, aes(x = season)) +
 
 #approximately equal distribution of movies across the seasons so we can proceed with the analysis 
 
-
 #one hot encode the season column and remove the original column 
 movies_cleaned <- fastDummies::dummy_cols(movies_cleaned, 
         select_columns = "season", remove_selected_columns = TRUE)
@@ -346,7 +341,7 @@ batch_size <- 100  # Set the batch size
 num_batches <- ceiling(nrow(movies_cleaned) / batch_size)
 actor_popularity_scores <- integer(nrow(movies_cleaned))  # Initialize the vector to store scores
 
-##WARNING - This function takes about 20 minutes to run on a standard computer 
+##WARNING## - This function takes about 20 minutes to run on a standard computer 
 
 # Initialize variables for tracking progress
 current_row <- 1  # Start from the first row
@@ -360,7 +355,7 @@ while (current_row <= total_rows) {
   
   # Process the current row
   actor_list <- strsplit(as.character(movies_cleaned$actors[current_row]), ",\\s*")[[1]]
-  actor_popularity_scores[current_row] <- sum(actor_appearances[actor_list])
+  actor_popularity_scores[current_row] <- sum(actor_appearances[actor_list]) 
   
   current_row <- current_row + 1  # Move to the next row
 }
@@ -371,8 +366,8 @@ movies_cleaned$actor_popularity <- actor_popularity_scores #Assign the calculate
 #check for zeros in the actor popularity scores
 sum(movies_cleaned$actor_popularity == 0) #no zeros so we can proceed 
 
-#remove the actors list column 
-movies_cleaned <- movies_cleaned %>% select(-actor_list) 
+#drop the actors column 
+movies_cleaned <- movies_cleaned %>% select(-actors) 
 
 
 movies_cleaned$audience_count <- log1p(movies_cleaned$audience_count) #apply a log transformation to the auidence_count
@@ -398,7 +393,6 @@ ggplot(movies_cleaned, aes(x = actor_popularity)) +
        y = "Count") +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5))  
-
 
 movies_cleaned$actor_popularity <- as.numeric(movies_cleaned$actor_popularity) #convert to numeric for regression analysis
 
@@ -522,7 +516,6 @@ years_seasonality <- ggplot(movies_sampled, aes(x = release_year, y = tomatomete
     plot.title = element_text(face = "bold", hjust = 0.5, size = 14),  # Bold and center the title with a smaller font size
     legend.position = "bottom",
     axis.text.x = element_text(angle = 45, vjust = 0.5, hjust = 1, size = 8),  # Smaller text for years
-    plot.margin = margin(4, 4, 4, 4, "points"),  # Adjust margins if needed
     legend.title = element_blank()
   )
 
@@ -535,11 +528,11 @@ print(years_seasonality) #years_seasonlity stored as a data object for later use
 
 ####### HYPOTHESIS TESTING AND MODELS ########  
 
-movies_cleaned <- read.csv("/Users/chase/Documents/movies_cleaned_3.csv" , header = TRUE) #read in the cleaned data set
-
+movies_cleaned_test <- read.csv("/Users/chase/Documents/movies_cleaned_3.csv" , header = TRUE) #read in the cleaned data set
+str(movies_cleaned_test)
 
 #drop the movie_title, directors, authors, actors, original_release_date, streaming_release_date columns as they are not needed for the analysis
-movies_cleaned <- movies_cleaned %>% select(-movie_title, -directors, -authors, -actors, -original_release_date, -streaming_release_date)
+movies_cleaned <- movies_cleaned %>% select(-movie_title, -directors, -authors, -original_release_date, -streaming_release_date)
 movies_cleaned <- movies_cleaned %>% select(-season_visualization) #drop the season_visualization column as it is not needed for the analysis
 names(movies_cleaned) 
 
@@ -605,20 +598,6 @@ plot(lm_model2)  #R^2 = 0.8362
 
 #still has outlier but will continue with this model for now and adjust later if necessary
 
-#Tomatometer status and rating are highly correlated so we will remove the status column from the data set 
-movies_cleaned <- movies_cleaned %>% select(-tomatometer_status) #drop the tomatometer_status column   
-OLS_set <- OLS_set %>% select(-tomatometer_status) #drop the tomatometer_status column
-testing_set <- testing_set %>% select(-tomatometer_status) #drop the tomatometer_status column
-training_set <- training_set %>% select(-tomatometer_status) #drop the tomatometer_status column
-
-#rerun the model 
-lm_model3 <- lm(tomatometer_rating ~ . - release_year, data = training_set) 
-summary(lm_model3) 
-plot(lm_model3) #Adjusted R^2 = 0.5472
-
-#model prediction power is lower but this is expected. However, we see some improvement in the residuals 
-#we will continue with this model for now and adjust later if necessary. 
-
 #step 2 - #applying log-transformations to skewed variables  
 
 #Actor popularity 
@@ -634,7 +613,7 @@ testing_set$actor_popularity <- log1p(testing_set$actor_popularity) #apply a log
 training_set$actor_popularity <- training_set$actor_popularity + 1 #add a constant to avoid log(0) 
 training_set$actor_popularity <- log1p(training_set$actor_popularity) #apply a log transformation to the actor popularity
 
-#number of actors 
+#number of actors  
 movies_cleaned$num_actors <- log1p(movies_cleaned$num_actors) #apply a log transformation to the number of actors 
 OLS_set$num_actors <- log1p(OLS_set$num_actors) #apply a log transformation to the number of actors 
 testing_set$num_actors <- log1p(testing_set$num_actors) #apply a log transformation to the number of actors 
@@ -659,9 +638,9 @@ testing_set$age_at_streaming <- log1p(testing_set$age_at_streaming) #apply a log
 training_set$age_at_streaming <- log1p(training_set$age_at_streaming) #apply a log transformation to the age at streaming 
 
 #rerun the model
-lm_model4 <- lm(tomatometer_rating ~ . - release_year, data = training_set)
-summary(lm_model4)
-plot(lm_model4) #Adjusted R^2 = 0.5464
+lm_model3 <- lm(tomatometer_rating ~ . - release_year, data = training_set)
+summary(lm_model3)
+plot(lm_model3) #Adjusted R^2 = 0.5464
  
 #small improvement in the residuals but we will now scale the data set to improve the model 
 
